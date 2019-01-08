@@ -9,7 +9,7 @@ import pandas as pd
 
 #http://edmundmartin.com/multi-threaded-crawler-in-python/
 BASE_URL_ = "https://www.mightymatcha.com/"
-NUM_SCRAPERS_ = 2
+NUM_SCRAPERS_ = 4
 os.chdir('D:\\test')
 SCRAP_DATA_FRAME = pd.DataFrame()
 urls_yet_to_be_scraped_ = queue.Queue()
@@ -135,7 +135,7 @@ def scrap_input_elements(url, driver):
     logger = ManualLogger(url, 550)
     page_df = scraping.read_prop_file(url, logger)
     #raw_input_html_eles = driver.find_elements_by_xpath('//input')
-    raw_input_html_eles = scraping.find_elements(driver.find_elements_by_tag_name(''))
+    raw_input_html_eles = find_elements(driver)
     if len(raw_input_html_eles) > 0:
         filter_df = page_df[page_df['page_url'] == url]
         data_frame_list = filter_df.values.tolist()
@@ -177,6 +177,18 @@ def write_prop_file(data_frame, base_url):
     writer.close()
     print('check if data written')
 
+#input - selected form element | output - list of elements in the form
+def find_elements(webdriver):
+    print('inside find_elements')
+    tagnames = ['input','select','textarea','button']  # possible input options on a web-page 
+    elms = list()
+    for i in tagnames:
+        temp = [elm for elm in webdriver.find_elements_by_tag_name(i) if elm.get_attribute("type") not in [ 'hidden','file','search'] ]
+        if temp != []:
+            elms.extend(temp)
+        else:
+            continue
+    return elms
 
 start_time_ = time.time()
 with ThreadPoolExecutor() as executor_:
