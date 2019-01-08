@@ -7,7 +7,7 @@ from crawl_new_classifier.logg import ManualLogger
 from crawl_new_classifier.predictor import Predictor
 import pandas as pd
 
-
+#http://edmundmartin.com/multi-threaded-crawler-in-python/
 BASE_URL_ = "https://www.mightymatcha.com/"
 NUM_SCRAPERS_ = 2
 os.chdir('D:\\test')
