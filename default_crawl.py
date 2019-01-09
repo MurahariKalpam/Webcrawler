@@ -4,12 +4,12 @@ from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from crawl_new_classifier import forms_latest as scraping
 from crawl_new_classifier.logg import ManualLogger
-from crawl_new_classifier.predictor import Predictor
+from crawl_new_classifier import predictor
 import pandas as pd
+from keras import models as model
 
-#http://edmundmartin.com/multi-threaded-crawler-in-python/
 BASE_URL_ = "https://www.mightymatcha.com/"
-NUM_SCRAPERS_ = 4
+NUM_SCRAPERS_ = 5
 os.chdir('D:\\test')
 SCRAP_DATA_FRAME = pd.DataFrame()
 urls_yet_to_be_scraped_ = queue.Queue()
@@ -18,29 +18,26 @@ urls_yet_to_be_scraped_.put(BASE_URL_)
 classified_URLs = dict()
 running_scrapers_ = queue.Queue()
 
-
-def scraper_(id_, base_url_):
+def scraper_(id_, base_url_, pmmodel):
 
     def flatten_(url_):
         return "".join(x for x in url_ if x.isalnum()) + ".txt"
-
-    display_ = False
     
     def eval_class(classify, url):
-        print('in eval_class: ', url)
         if url not in classified_URLs:
             url_classification = classify.classifier()  
             print('url_classification: ', url_classification)
             classified_URLs[url] = url_classification
         else:
             print('URL already classified')
-    
+            
+    display_ = False
     try:
         print('scrapper id  is : {}'.format(id_))
 #        options = Options()
 #        options.add_argument('--headless')
         driver = webdriver.Chrome(executable_path='D:\\IVSSOLH\\Deep_Assurance\\pythoncode\\Crawler\\chromedriver.exe')
-        driver.get(url=BASE_URL_)
+        driver.get(url="https://www.mightymatcha.com/")
         try:
             num_iterations_ = 0
             while True:
@@ -58,8 +55,12 @@ def scraper_(id_, base_url_):
                             tag = ''
                             driver.get(url_)
                             links_in_page = set()
-                            # Adding timeout period to makesure the webpage loaded totally so that it fetches links
+                            # Adding timeout period to makesure the webpage load totally.
                             WebDriverWait(driver, 10)
+                            
+                            classify = predictor.Predictor(driver, pmmodel)
+                            eval_class(classify, url_)
+                            
                             links_partial = driver.find_elements_by_partial_link_text('')
                             if links_partial:
                                 for i in links_partial:
@@ -80,7 +81,8 @@ def scraper_(id_, base_url_):
                                 print("file operations")
                                 f.write(url_ + "\n" + tag)
                                 
-                            scrap_input_elements(url_, driver)
+                            if str(driver.current_url).startswith(BASE_URL_):
+                                scrap_input_elements(url_, driver)
                             
                             for new_url_ in links_in_page:  # get links
                                 if not(glob.glob(flatten_(new_url_))):
@@ -126,7 +128,6 @@ def scraper_(id_, base_url_):
         print('Exception in scraper with ID {}: {}'.format(id_, str(exception_)))
         return False    
 
-
 def scrap_input_elements(url, driver):
     """
     Method to scrap all the input elements of a html page.
@@ -134,7 +135,7 @@ def scrap_input_elements(url, driver):
     global SCRAP_DATA_FRAME
     logger = ManualLogger(url, 550)
     page_df = scraping.read_prop_file(url, logger)
-    #raw_input_html_eles = driver.find_elements_by_xpath('//input')
+    # raw_input_html_eles = driver.find_elements_by_xpath('//input')
     raw_input_html_eles = find_elements(driver)
     if len(raw_input_html_eles) > 0:
         filter_df = page_df[page_df['page_url'] == url]
@@ -162,10 +163,8 @@ def scrap_input_elements(url, driver):
                 continue
         print('dataframe shape after processing form elms : ', page_df.shape)
         SCRAP_DATA_FRAME = SCRAP_DATA_FRAME.append(page_df, ignore_index=True)
-        print('*********************============************************* : ', SCRAP_DATA_FRAME.shape)
 
-
-def write_prop_file(data_frame, base_url):
+def write_to_prop_file(data_frame, base_url):
     """
     Method to write input elements to file which are present in dataframe
     """
@@ -177,26 +176,48 @@ def write_prop_file(data_frame, base_url):
     writer.close()
     print('check if data written')
 
-#input - selected form element | output - list of elements in the form
+# input - selected form element | output - list of elements in the form
 def find_elements(webdriver):
+    """
+    Method to scrap html elements
+    """
     print('inside find_elements')
-    tagnames = ['input','select','textarea','button']  # possible input options on a web-page 
+    tagnames = ['input', 'select', 'textarea', 'button']  # possible input options on a web-page 
     elms = list()
     for i in tagnames:
-        temp = [elm for elm in webdriver.find_elements_by_tag_name(i) if elm.get_attribute("type") not in [ 'hidden','file','search'] ]
+        temp = [elm for elm in webdriver.find_elements_by_tag_name(i) if elm.get_attribute("type") not in [ 'hidden', 'file', 'search'] ]
         if temp != []:
             elms.extend(temp)
         else:
             continue
     return elms
 
+def load_saved_model():
+    return model.load_model("D:\\IVSSOLH\\Deep_Assurance\\pythoncode\\Crawler\\saved model_81.71.h5")
+
+def dataframe_to_excel(dataframe, cols, url):
+    """
+    Method to write dataframe into excell
+    """
+    try:
+        df = pd.DataFrame(dataframe, columns=cols)
+        flatternurl = ''.join(i for i in url if i.isalnum())
+        url_path_ = 'D:\\props\\' + flatternurl + '-CLASSIFICATION' + '.xlsx'
+        writer = pd.ExcelWriter(url_path_, engine='xlsxwriter', options={'strings_to_urls': False})
+        df.to_excel(writer)
+        writer.close()
+    except Exception as ex:
+        print("Error in converting ", type(dataframe), "to Dataframe in method : dataframe_to_excel", ex) 
+        
 start_time_ = time.time()
 with ThreadPoolExecutor() as executor_:
     scraper_ids_ = [_ for _ in range(NUM_SCRAPERS_)]
     scraper_base_urls_ = [BASE_URL_ for _ in range(NUM_SCRAPERS_)]
-    for scraper_index_, scraper_final_status_ in zip(scraper_ids_, executor_.map(scraper_, scraper_ids_, scraper_base_urls_)):
+    pmodel = [load_saved_model() for _ in range(NUM_SCRAPERS_)]
+    for scraper_index_, scraper_final_status_ in zip(scraper_ids_, executor_.map(scraper_, scraper_ids_, scraper_base_urls_, pmodel)):
         print('scraper_index_: ', scraper_index_)
         print('scraper_final_status_: ', scraper_final_status_)
-write_prop_file(SCRAP_DATA_FRAME, BASE_URL_)
+write_to_prop_file(SCRAP_DATA_FRAME, BASE_URL_)
+dataframe_to_excel(classified_URLs, ["Webpage", "Categeory"], BASE_URL_)
 end_time_ = time.time()
 print("{} seconds consumed for {} titles using recursive-multithreaded access".format(end_time_ - start_time_, urls_already_scraped_.qsize()))
