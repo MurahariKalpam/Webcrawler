@@ -4,9 +4,10 @@ from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from crawl_new_classifier import forms_latest as scraping
 from crawl_new_classifier.logg import ManualLogger
-from crawl_new_classifier import predictor
+from crawl_new_classifier.predictor import Predictor
 import pandas as pd
 from keras import models as model
+
 
 BASE_URL_ = "https://www.mightymatcha.com/"
 NUM_SCRAPERS_ = 5
@@ -18,8 +19,7 @@ urls_yet_to_be_scraped_.put(BASE_URL_)
 classified_URLs = dict()
 running_scrapers_ = queue.Queue()
 
-def scraper_(id_, base_url_, pmmodel):
-
+def scraper_(id_, base_url_):
     def flatten_(url_):
         return "".join(x for x in url_ if x.isalnum()) + ".txt"
     
@@ -56,10 +56,15 @@ def scraper_(id_, base_url_, pmmodel):
                             driver.get(url_)
                             links_in_page = set()
                             # Adding timeout period to makesure the webpage load totally.
-                            WebDriverWait(driver, 10)
+                            WebDriverWait(driver, 20)
                             
-                            classify = predictor.Predictor(driver, pmmodel)
-                            eval_class(classify, url_)
+                            classify = Predictor(driver)
+                            if url_ not in classified_URLs:
+                                url_classification = classify.classifier()  
+                                print('url_classification: ', url_classification)
+                                classified_URLs[url_] = url_classification
+                            else:
+                                print('URL already classified')
                             
                             links_partial = driver.find_elements_by_partial_link_text('')
                             if links_partial:
@@ -193,7 +198,8 @@ def find_elements(webdriver):
     return elms
 
 def load_saved_model():
-    return model.load_model("D:\\IVSSOLH\\Deep_Assurance\\pythoncode\\Crawler\\saved model_81.71.h5")
+    global pmodel
+    pmodel = [model.load_model('D:\\IVSSOLH\\Deep_Assurance\\pythoncode\\Crawler\\saved model_81.71.h5') for _ in range(NUM_SCRAPERS_)]
 
 def dataframe_to_excel(dataframe, cols, url):
     """
@@ -210,14 +216,15 @@ def dataframe_to_excel(dataframe, cols, url):
         print("Error in converting ", type(dataframe), "to Dataframe in method : dataframe_to_excel", ex) 
         
 start_time_ = time.time()
+
 with ThreadPoolExecutor() as executor_:
     scraper_ids_ = [_ for _ in range(NUM_SCRAPERS_)]
     scraper_base_urls_ = [BASE_URL_ for _ in range(NUM_SCRAPERS_)]
-    pmodel = [load_saved_model() for _ in range(NUM_SCRAPERS_)]
-    for scraper_index_, scraper_final_status_ in zip(scraper_ids_, executor_.map(scraper_, scraper_ids_, scraper_base_urls_, pmodel)):
+    #pmodel = [model.load_model('D:\\IVSSOLH\\Deep_Assurance\\pythoncode\\Crawler\\saved model_81.71.h5') for _ in range(NUM_SCRAPERS_)]
+    for scraper_index_, scraper_final_status_ in zip(scraper_ids_, executor_.map(scraper_, scraper_ids_, scraper_base_urls_)):
         print('scraper_index_: ', scraper_index_)
         print('scraper_final_status_: ', scraper_final_status_)
 write_to_prop_file(SCRAP_DATA_FRAME, BASE_URL_)
-dataframe_to_excel(classified_URLs, ["Webpage", "Categeory"], BASE_URL_)
+#dataframe_to_excel(classified_URLs, ["Webpage", "Categeory"], BASE_URL_)
 end_time_ = time.time()
 print("{} seconds consumed for {} titles using recursive-multithreaded access".format(end_time_ - start_time_, urls_already_scraped_.qsize()))
