@@ -7,7 +7,7 @@ from crawl_new_classifier.logg import ManualLogger
 from crawl_new_classifier.predictor import Predictor
 import pandas as pd
 from keras import models as model
-
+import tensorflow as tf
 
 BASE_URL_ = "https://www.mightymatcha.com/"
 NUM_SCRAPERS_ = 5
@@ -18,20 +18,25 @@ urls_already_scraped_ = queue.Queue()
 urls_yet_to_be_scraped_.put(BASE_URL_)
 classified_URLs = dict()
 running_scrapers_ = queue.Queue()
+CLASSIFICATION_DATAFRAME = pd.DataFrame()
 
-def scraper_(id_, base_url_):
+def scraper_(id_, base_url_, smodel, tgraph):
+    global classified_URLs
     def flatten_(url_):
         return "".join(x for x in url_ if x.isalnum()) + ".txt"
     
-    def eval_class(classify, url):
-        if url not in classified_URLs:
+    def eval_class(classify, url_):
+        global classified_URLs
+        if url_ not in classified_URLs:
             url_classification = classify.classifier()  
             print('url_classification: ', url_classification)
-            classified_URLs[url] = url_classification
+            classified_URLs[url_] = url_classification
+            print("Classified URLS size $$$$$$$$$$$$$$$$", len(classified_URLs))
         else:
             print('URL already classified')
             
     display_ = False
+    
     try:
         print('scrapper id  is : {}'.format(id_))
 #        options = Options()
@@ -51,21 +56,17 @@ def scraper_(id_, base_url_):
                     modified_url = flatten_(url_)                                     
                     if modified_url not in glob.glob(modified_url):
                         try:
-#                             print("scraper_ :: {} :: 2 :: {}".format(id_, url_))
+#                           print("scraper_ :: {} :: 2 :: {}".format(id_, url_))
                             tag = ''
                             driver.get(url_)
                             links_in_page = set()
+                            
                             # Adding timeout period to makesure the webpage load totally.
-                            WebDriverWait(driver, 20)
+                            WebDriverWait(driver, 10)
                             
-                            classify = Predictor(driver)
-                            if url_ not in classified_URLs:
-                                url_classification = classify.classifier()  
-                                print('url_classification: ', url_classification)
-                                classified_URLs[url_] = url_classification
-                            else:
-                                print('URL already classified')
-                            
+                            classify = Predictor(driver, smodel, tgraph)
+                            classifier(url_, classify)
+                                            
                             links_partial = driver.find_elements_by_partial_link_text('')
                             if links_partial:
                                 for i in links_partial:
@@ -168,8 +169,9 @@ def scrap_input_elements(url, driver):
                 continue
         print('dataframe shape after processing form elms : ', page_df.shape)
         SCRAP_DATA_FRAME = SCRAP_DATA_FRAME.append(page_df, ignore_index=True)
+        print('*******************=================******************', SCRAP_DATA_FRAME.shape)
 
-def write_to_prop_file(data_frame, base_url):
+def write_to_prop_file(data_frame, base_url, remove_dupilates):
     """
     Method to write input elements to file which are present in dataframe
     """
@@ -177,6 +179,8 @@ def write_to_prop_file(data_frame, base_url):
     print(url_)
     url_path_ = 'D:\\props\\' + url_ + '.xlsx'
     writer = pd.ExcelWriter(url_path_, engine='xlsxwriter', options={'strings_to_urls': False})
+    if remove_dupilates & len(data_frame) > 0:
+        data_frame.drop_duplicates(keep="first", inplace=True)
     data_frame.to_excel(writer)
     writer.close()
     print('check if data written')
@@ -198,15 +202,28 @@ def find_elements(webdriver):
     return elms
 
 def load_saved_model():
-    global pmodel
-    pmodel = [model.load_model('D:\\IVSSOLH\\Deep_Assurance\\pythoncode\\Crawler\\saved model_81.71.h5') for _ in range(NUM_SCRAPERS_)]
+    """
+    Method to load the model.
+    
+    Below are being used to handle the loaded model by multiple threads. Otherwise it gives the issue while predicting. 
+    _make_predict_function
+    get_default_graph
+    """
+    try:
+        smodel = [model.load_model('D:\\IVSSOLH\\Deep_Assurance\\pythoncode\\Crawler\\saved model_81.71.h5') for _ in range(NUM_SCRAPERS_)]
+        for i in range(len(smodel)):
+            smodel[i]._make_predict_function()
+            sgraph.append(tf.get_default_graph())
+        return sgraph, smodel
+    except Exception as ex:
+        print("Error in loading the model in load_saved_model :", ex)
 
 def dataframe_to_excel(dataframe, cols, url):
     """
     Method to write dataframe into excell
     """
     try:
-        df = pd.DataFrame(dataframe, columns=cols)
+        df = pd.DataFrame.from_dict(dataframe, columns=cols)
         flatternurl = ''.join(i for i in url if i.isalnum())
         url_path_ = 'D:\\props\\' + flatternurl + '-CLASSIFICATION' + '.xlsx'
         writer = pd.ExcelWriter(url_path_, engine='xlsxwriter', options={'strings_to_urls': False})
@@ -215,16 +232,39 @@ def dataframe_to_excel(dataframe, cols, url):
     except Exception as ex:
         print("Error in converting ", type(dataframe), "to Dataframe in method : dataframe_to_excel", ex) 
         
-start_time_ = time.time()
+def remove_duplicates(data_frame):
+    return data_frame.drop_duplicates(keep="first", inplace=True)
 
+classifier_df = pd.DataFrame()
+def classifier(url_, classify):
+    global classified_URLs
+    global classifier_df
+    if url_ not in classified_URLs:
+        url_classification = classify.classifier()
+        print('url_classification: ', url_classification)
+        classified_URLs[url_] = url_classification
+        print("Classified URLS size Dataframe size", len(classified_URLs))
+        print(classified_URLs)
+    else:
+        print('URL already classified')
+
+start_time_ = time.time()
+sgraph = list()
 with ThreadPoolExecutor() as executor_:
     scraper_ids_ = [_ for _ in range(NUM_SCRAPERS_)]
     scraper_base_urls_ = [BASE_URL_ for _ in range(NUM_SCRAPERS_)]
     #pmodel = [model.load_model('D:\\IVSSOLH\\Deep_Assurance\\pythoncode\\Crawler\\saved model_81.71.h5') for _ in range(NUM_SCRAPERS_)]
-    for scraper_index_, scraper_final_status_ in zip(scraper_ids_, executor_.map(scraper_, scraper_ids_, scraper_base_urls_)):
+    """    model = [model.load_model('D:\\IVSSOLH\\Deep_Assurance\\pythoncode\\Crawler\\saved model_81.71.h5') for _ in range(NUM_SCRAPERS_)]
+    for i in range(len(model)):
+        model[i]._make_predict_function()
+        graph.append(tf.get_default_graph())
+    """
+    tgraph, smodel = load_saved_model()
+    for scraper_index_, scraper_final_status_ in zip(scraper_ids_, executor_.map(scraper_, scraper_ids_, scraper_base_urls_, smodel, tgraph)):
         print('scraper_index_: ', scraper_index_)
         print('scraper_final_status_: ', scraper_final_status_)
-write_to_prop_file(SCRAP_DATA_FRAME, BASE_URL_)
+       
+write_to_prop_file(SCRAP_DATA_FRAME, BASE_URL_, True)
 #dataframe_to_excel(classified_URLs, ["Webpage", "Categeory"], BASE_URL_)
 end_time_ = time.time()
 print("{} seconds consumed for {} titles using recursive-multithreaded access".format(end_time_ - start_time_, urls_already_scraped_.qsize()))
