@@ -18,27 +18,20 @@ from nltk.corpus import wordnet as wn, stopwords as sw
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import StandardScaler
-import tensorflow as tf
-from keras import models as model
 
 
 class Predictor:
-    def __init__(self, driver):
+    def __init__(self, driver, model, graph):
         self.browser = driver
 #         webdriver.Chrome(executable_path="C:\\Users\\sachin.nandakumar\\Desktop\\AI\\chromedriver.exe")
+        self.page_classifier = model
         self.ignore_tags = ('script', 'noscript', 'style')
+        self.graph = graph
 
     def classifier(self):
         try:
-            
             # Navigating to page and extracting text
 #             self.browser.get(url)
-
-            self.model = model.load_model("D:\\IVSSOLH\\Deep_Assurance\\pythoncode\\Crawler\\saved model_81.71.h5")
-            self.model._make_predict_function()
-            self.graph = tf.get_default_graph()
-
-
             content = self.browser.page_source
             cleaner = clean.Cleaner()
             content = cleaner.clean_html(content)
@@ -87,8 +80,8 @@ class Predictor:
         sc = StandardScaler()
         X = sc.fit_transform(X_tfidf)
         
-        with self.graph.as_default():        
-            y_pred = self.model.predict(X_tfidf)
+        with self.graph.as_default():
+            y_pred = self.page_classifier.predict(X_tfidf)
             
         y_addCol = np.zeros((1, 1))
         if np.sum(y_pred) == 0:
