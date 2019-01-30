@@ -1,4 +1,3 @@
-
 #===============================================================================
 # Importing required packages
 
@@ -254,7 +253,7 @@ def radio_elm(driver, elm, welms, data_store,logger):
             if i in welms:
                 welms.remove(i)
         option = random.choice(options)
-        data_store = save_data(driver,elm, option.get_attribute('value'), data_store,logger)
+        #data_store = save_data(driver,elm, option.get_attribute('value'), data_store,logger)
         option.click()
         return data_store , welms
     except Exception as e:
@@ -275,7 +274,7 @@ def checkbox_elm(driver, elm, welms, data_store,logger):
             time.sleep(3)
             options.remove(option)
             print('selected checkbox option is ' + str(option.get_attribute('innerHTML')))
-            data_store = save_data(driver, elm, str(option.get_attribute('title')), data_store, logger)
+            #data_store = save_data(driver, elm, str(option.get_attribute('title')), data_store, logger)
             return data_store , welms
         for i in options:
             if i in welms:
@@ -289,7 +288,7 @@ def checkbox_elm(driver, elm, welms, data_store,logger):
                     time.sleep(3)
                     options.remove(option)
                     print('selected checkbox option is ' + str(option.get_attribute('innerHTML')))
-                    data_store = save_data(driver, elm, str(option.get_attribute('title')), data_store, logger)
+                    #data_store = save_data(driver, elm, str(option.get_attribute('title')), data_store, logger)
                 else:
                     pass
                 random_option.append(option)
@@ -326,7 +325,7 @@ def select_elm(driver, elm, data_store,logger):
         print('element selected is ' + option)
 #             data_store = save_data(driver, elm, option, data_store,logger)
         ipval = elm.get_attribute('value')
-        data_store = save_data(driver, elm, ipval, data_store, logger)
+        #data_store = save_data(driver, elm, ipval, data_store, logger)
 #         return option
     except Exception as e:
         print('Drop down cannot be located')
@@ -341,7 +340,7 @@ def textarea_elm(driver, elm, data_store,logger):
     try:
         text = ''.join(choice(string.ascii_letters) for i in range(random.randint(1, 50)))
         elm.send_keys(text) 
-        data_store = save_data(driver, elm, text, data_store,logger)
+        #data_store = save_data(driver, elm, text, data_store,logger)
         print(text)
     except Exception as e:
         print('Unknown exception occurred in textarea')
@@ -435,7 +434,7 @@ def text_elm(driver, elm, data_store,logger):
         print('data returned from autofill is ',data)
         if data != '':
             print('inside autofill if')
-            data_store=save_data(driver,elm,data,data_store,logger)
+            #data_store=save_data(driver,elm,data,data_store,logger)
             return data_store
         else:
             print('else segment of autofill')
@@ -559,7 +558,7 @@ def check_out_button(driver,button,data_store,logger):
                     else:
                         name1=elm.get_attribute('value') #sumer name to elm
                     ipval = 'click on '+name1
-                    data_store = save_data(driver, elm, ipval, data_store, logger)
+                    #data_store = save_data(driver, elm, ipval, data_store, logger)
                     randomlink_checkout.click() 
                     return 'Clicked',data_store
                 return 'None',data_store
@@ -587,7 +586,7 @@ def submit_btns(driver, elm, data_store,logger):
             name1=elm.get_attribute('value') #sumer name to elm
         ipval = 'click on '+name1
         print('val is ' ,ipval,type(ipval))
-        data_store = save_data(driver, elm, ipval, data_store, logger)
+        #data_store = save_data(driver, elm, ipval, data_store, logger)
         elm.click()
 #         if driver.current_url != url:
 #             return True, driver.current_url , data_store
@@ -831,13 +830,15 @@ functions for re-ordering the elements ends here
 '''
 #=======================================================================
 # To extract the form elements of the current web page
-
+data_store = None
 def get_form_elms(driver, url,formelm):
     try:
         logger = m(url, 999)
         print('inside get_form_elms')
         logger.write_log_data(url)
-        data_store = dict() #has the data entered for that form
+        #global data_store #has the data entered for that form
+        global data_store
+        data_store = dict()
         error_store = dict() # has the list of errors captured after the submission
         err_list = []
         #sumer
@@ -887,6 +888,7 @@ def get_form_elms(driver, url,formelm):
             if len(webelm_list) != 0:
                 print('form has interactive elements',len(webelm_list))
                 while webelm_list or len(webelm_list):
+                    
                     print('inside while for')
                     elm=webelm_list.pop(0)
                     try:
@@ -1103,16 +1105,8 @@ def get_form_elms(driver, url,formelm):
 #===============================================================================
 # #===============================================================================
 driver=webdriver.Chrome(executable_path=DAProperties.CHROME_DRIVER.value)
-# # url='http://www.cma-cgm.com/ebusiness/schedules/voyage'
-# url='https://www.cma-cgm.com/ebusiness/schedules'
-url='https://www.myntra.com/register?referer=https://www.myntra.com/'
+url='https://www.petsupermarket.com/login.php?action=create_account'
 WebDriverWait(driver, 5)
-# # # url="https://m.costco.com/LogonForm"
-# # # url='https://lenskartinc.freshdesk.com/support/login'
-# # url='https://www.cma-cgm.com/ebusiness/tarifs/insurance_request'
-# # # url='https://auth.cma-cgm.com/idp/prp.wsf?wctx=WsFedOwinState%3DeAXD3QB4EbAaxsAtGwkKHq-hdaXnDrjNz26aE6yFW1HK9ixJ56RUI47rptz9gh23iIql8gdkdHSt1PdUbx75SekRi4aU9gmCDAAWVwE7En1-KAhZ7LmAxp7jgDkcfeHruMZKwn-87mFy-AYUiAao5A%26Language%3Den-US%26actas%3Dfalse%26Site%3Dcmacgm&wa=wsignin1.0&wtrealm=https%3A%2F%2Fwww.cma-cgm.com&wauth=urn%3Aoasis%3Anames%3Atc%3ASAML%3A1.0%3Aam%3Apassword'
-# # # url='https://www.jcpenney.com/signin
-#logobj = m()
 driver.get(url)
 formElements=driver.find_elements_by_tag_name("form")
 status=get_form_elms(driver,url,formElements)
