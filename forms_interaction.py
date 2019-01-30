@@ -1,3 +1,4 @@
+
 #===============================================================================
 # Importing required packages
 
@@ -439,6 +440,22 @@ def text_elm(driver, elm, data_store,logger):
         else:
             print('else segment of autofill')
             #elm.clear()
+            if str(elm.get_attribute('type')).lower() == "text":
+                if re.search('email', elm.get_attribute('outerHTML')) is not None:
+                    elm.send_keys("sampleemail123@gmail.com")
+                elif re.search('mobile', elm.get_attribute('outerHTML')) is not None or re.search('phone', elm.get_attribute('outerHTML')) is not None:
+                    elm.send_keys("0987654321")
+                else:
+                    elm.send_keys("Sample text data")
+            elif str(elm.get_attribute('type')).lower() == "email":
+                elm.send_keys("sampleemail123@gmail.com")
+            elif re.search('mobile', elm.get_attribute('outerHTML')) is not None or re.search('phone', elm.get_attribute('outerHTML')) is not None:
+                elm.send_keys("0987654321")
+            elif str(elm.get_attribute('type')).lower() == "password":
+                elm.send_keys("Infy@1234")
+
+
+            """
             for info in infotype:
                 print('info is ', info[0]) #sumer info to info[0] because info is tuple with one element
                 val = elm.get_attribute(info[0]).lower() #sumer info to info[0] because info is tuple with one element
@@ -473,6 +490,7 @@ def text_elm(driver, elm, data_store,logger):
                 elm.send_keys(text)
                 flag = 1
                 return data_store
+            """
         #sumer    
         #=======================================================================
         # else:
@@ -700,9 +718,11 @@ def grp_elms(driver, frmelm, url):
     elm_dict = list()
     print(frmelm.get_attribute('action'))
     elms = [elm for elm in frmelm.find_elements_by_tag_name("input") if (elm.get_attribute("type") not in [ 'hidden','file'])]
+    print(len(elms))
     for elm in elms:
         try:
             elm_type = elm.get_attribute('type')
+            print(elm_type)
             if  elm_type in input_dict.keys():
                 elm = [elm]
                 temp = input_dict[elm_type]
@@ -717,13 +737,16 @@ def grp_elms(driver, frmelm, url):
             print('exception encountered ' + str(e))
     print('len of elms initial before buttons etc' + str(len(elms)))
     tagnames = ['select', 'button', 'textarea']  # possible input options on a web-page 
+    print(input_dict.keys())
     for i in tagnames:
         print(i)
         temp = [elm for elm in frmelm.find_elements_by_tag_name(i) if elm.get_attribute("type") not in [ 'hidden' , 'file' ] ]
+        print(len(temp))
         if temp != []:
             input_dict[i] = temp
             elms.extend(temp)
             print(i, len(elms))
+    print(elms)
     print('len of elms final'+str(len(elms))) #sumer: just for print
     return elms    #change 05nov bindiya
     '''
@@ -868,7 +891,7 @@ def get_form_elms(driver, url,formelm):
                     elm=webelm_list.pop(0)
                     try:
                         print('inside webelement try :iterations remaining : elem focused no',len(webelm_list) ,elm.get_attribute('outerHTML'))
-                        time.sleep(4)
+                        #time.sleep(4)
                         if elm.is_displayed():
                             print('elm is displayed',elm.get_attribute('outerHTML'))
                             if elm.get_attribute('type') == 'radio':
@@ -887,7 +910,7 @@ def get_form_elms(driver, url,formelm):
                                 data_store = textarea_elm(driver, elm, data_store,logger)
                                 continue
                             
-                            elif elm.get_attribute('type') in ['text', 'password', 'email']: #sumer 'email' added
+                            elif elm.get_attribute('type') in ['text', 'password', 'email', 'number']: #sumer 'email' added
                                 data_store = text_elm(driver, elm, data_store,logger) 
                                 continue      
                             
@@ -1082,7 +1105,7 @@ def get_form_elms(driver, url,formelm):
 driver=webdriver.Chrome(executable_path=DAProperties.CHROME_DRIVER.value)
 # # url='http://www.cma-cgm.com/ebusiness/schedules/voyage'
 # url='https://www.cma-cgm.com/ebusiness/schedules'
-url='https://www.cma-cgm.com/eBusiness/Registration/Information'
+url='https://www.myntra.com/register?referer=https://www.myntra.com/'
 WebDriverWait(driver, 5)
 # # # url="https://m.costco.com/LogonForm"
 # # # url='https://lenskartinc.freshdesk.com/support/login'
