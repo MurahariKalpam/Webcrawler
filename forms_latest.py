@@ -10,7 +10,8 @@ from selenium.webdriver.support.ui import Select
 from selenium.common.exceptions import StaleElementReferenceException
 
 from bs4 import BeautifulSoup
-
+from crawl_new_classifier import Form_Interactive_Elems_Scrap
+from crawl_new_classifier.Form_Interactive_Elems_Scrap import Xpath_Util as xpathscrap
 #input - testurl | #output - dataframe (existing / empty)
 
 def read_prop_file(url,logger):
@@ -150,11 +151,13 @@ def checkbox_elm(driver, elm, welms, data_store, logger):
             elm.click()
             print('selected checkbox option is ' + str(option.get_attribute('innerHTML')))
             data_store = save_data(driver, elm, option, data_store, logger)
-        return 'checkbox',data_store
+        #return 'checkbox',data_store
+        return data_store
     except Exception as e:
         print('Unknown checkbox exception occurred')
         print(e)
-        return 'checkbox',data_store
+        #return 'checkbox',data_store
+        return data_store
 
 def select_elm(driver, elm, data_store, logger):
     print('drop downs')
@@ -335,11 +338,6 @@ def find_elements(form_elm):
 # #===============================================================================
 #===============================================================================
 
-'''
-Created on Jul 13, 2018
-
-@author: bindiya.r
-'''
 
 #===============================================================================
 # Importing required packages
@@ -348,7 +346,8 @@ Created on Jul 13, 2018
 #===============================================================================
 
 
-data_dict = {0: "infosys@gmail.com", 1: "Infy1234*", 2: "Infosys", 3:"Solution", 4: "7800 Smith Rd", 5: "Denver", 6: "CO - Colorado", 7: "80022", 8: "3035612794", 9: "567", 10: "Standard", 11: "5555555555554444" , 12: "Mastercard", 13: "xyz", 14: "07", 15: "21", 16: "656", 17: "01", 18:"01"} 
+#data_dict = {0: "infosys@gmail.com", 1: "Infy1234*", 2: "Infosys", 3:"Solution", 4: "7800 Smith Rd", 5: "Denver", 6: "CO - Colorado", 7: "80022", 8: "3035612794", 9: "567", 10: "Standard", 11: "5555555555554444" , 12: "Mastercard", 13: "xyz", 14: "07", 15: "21", 16: "656", 17: "01", 18:"01"} 
+data_dict = {0: "infosys@gmail.com", 1: "Infy1234*", 2: "Infosys", 3:"Solution", 4: "7800 Smith Rd", 5: "Denver", 6: "CO - Colorado", 7: "80022", 8: "3035612794", 9: "567", 10: "Standard", 11: "5555555555554444" , 12: "Mastercard", 13: "xyz", 14: "07", 15: "21", 16: "656", 17: "01", 18:"01"}
 res = db_handler.get_data_for_test_field()
  
 infotype = list()
@@ -440,10 +439,11 @@ def text_elm(driver, elm, data_store,logger):
             return data_store
         else:
             print('else segment of autofill')
-            elm.clear()
+            #elm.clear()
             for info in infotype:
                 print('info is ', info[0]) #sumer info to info[0] because info is tuple with one element
                 val = elm.get_attribute(info[0]).lower() #sumer info to info[0] because info is tuple with one element
+              
                 print('value is ', val)
                                 
                 if val!='':
@@ -457,12 +457,14 @@ def text_elm(driver, elm, data_store,logger):
     #                                 pos=iporder.index(each)
                                     ipval = data_dict[pos]
                                     data_store = save_data(driver, elm, ipval, data_store,logger)
+                                    #if elm.get_attribute("value") is '':
                                     elm.send_keys(ipval)
                                     flag = 1
                                     return data_store
                             except Exception as e:
                                 print('data not available in data_dict')
                                 print('Exception occurred is ', e)
+                                
                                 logger.write_log_data('data not available in data_dict')
                                 continue
                 
@@ -530,8 +532,8 @@ def check_out_button(driver,button,data_store,logger):
         print('Selected button is :',val,'=',elm)
         try:
             button.click()
-            print('button clicked')
-            time.sleep(10)
+            #time.sleep(30)
+            
             if re.search('.*Add To Bag*.', val) is not None:
                 #self.driver.get("https://uat.ulta.com/bag/")
                 link_checkout=driver.find_elements_by_partial_link_text("CHECKOUT")
@@ -650,7 +652,7 @@ def grp_elms(driver, frmelm, url):
         except Exception as e:
             print('exception encountered ' + str(e))
     print('len of elms initial before buttons etc' + str(len(elms)))
-    tagnames = ['select', 'button', 'textarea']  # possible input options on a web-page 
+    tagnames = ['select', 'button', 'textarea' , 'a']  # possible input options on a web-page 
     for i in tagnames:
         print(i)
         temp = [elm for elm in frmelm.find_elements_by_tag_name(i) if elm.get_attribute("type") not in [ 'hidden' , 'file' ] ]
@@ -700,6 +702,7 @@ def get_form_elms(driver, url,logger, formelm):
                 input_type=el.get_attribute("type").lower()
                 input_id=el.get_attribute("id").lower()
                 if(re.search('.*search.*', input_type) is not None) or (re.search('.*search.*', input_id) is not None and (input_type not in ['hidden'])):
+                    continue
                     print("selected form performs search task..hence selecting another form")
                     if formelm:
                         form=random.choice(formelm)
@@ -717,17 +720,23 @@ def get_form_elms(driver, url,logger, formelm):
             print(form.get_attribute('action'))
 #             global webelm_list
             
+            xpath_obj = xpathscrap()
+            page = driver.execute_script("return document.body.innerHTML").encode('utf-8') #returns the inner HTML as a string
+            soup = BeautifulSoup(page, 'html.parser')
+            if xpath_obj.generate_xpath(soup, driver) is False:
+                print("No XPaths generated for the URL:%s"%url)
+            
             webelm_list = grp_elms(driver, form, url)
             print('The number of inputs possible on this page is ' + str(len(webelm_list)))
             no_visible_counter = 0
-            if len(webelm_list) != 0:
+            if len(webelm_list) != 0: 
                 print('form has interactive elements',len(webelm_list))
                 while webelm_list or len(webelm_list):
                     print('inside while for')
                     elm=webelm_list.pop(0)
                     try:
                         print('inside webelement try :iterations remaining : elem focused no',len(webelm_list) ,elm.get_attribute('outerHTML'))
-                        time.sleep(4)
+                        #time.sleep(4)
                         if elm.is_displayed():
                             print('elm is displayed',elm.get_attribute('outerHTML'))
                             if elm.get_attribute('type') == 'radio':
@@ -735,7 +744,8 @@ def get_form_elms(driver, url,logger, formelm):
                                 continue
                             
                             elif elm.get_attribute('type') == 'checkbox':
-                                data_store , webelm_list = checkbox_elm(driver, elm, webelm_list, data_store,logger)
+                                #data_store , webelm_list = checkbox_elm(driver, elm, webelm_list, data_store,logger)
+                                data_store = checkbox_elm(driver, elm, webelm_list, data_store,logger)
                                 continue
                             
                             elif elm.tag_name == 'select': 
@@ -746,7 +756,7 @@ def get_form_elms(driver, url,logger, formelm):
                                 data_store = textarea_elm(driver, elm, data_store,logger)
                                 continue
                             
-                            elif elm.get_attribute('type') in ['text', 'password', 'email']: #sumer 'email' added
+                            elif elm.get_attribute('type') in ['text', 'password', 'email', 'tel']: #sumer 'email' added
                                 data_store = text_elm(driver, elm, data_store,logger) 
                                 continue      
                             
@@ -937,10 +947,18 @@ from selenium.webdriver.support.ui import WebDriverWait
 from crawl_new_classifier.properties import DAProperties
 from crawl_new_classifier.logg import ManualLogger as m
 driver=webdriver.Chrome(executable_path=DAProperties.CHROME_DRIVER.value)
-url='https://www.cma-cgm.com/eBusiness/Registration/Information'
-WebDriverWait(driver, 5)
-driver.get(url)
-formElements=driver.find_elements_by_tag_name("form")
-logger = m(url, 999)
-status=get_form_elms(driver, url, logger, formElements)
-print(status)
+urls=['https://www.petstore.com/ps_login.html',
+     #'https://www.petstore.com/ps_homepage.aspx',
+     #'https://www.petstore.com/Dog_Beds-DGBD-ct.html',
+    # 'https://www.petstore.com/Mid_West_Metal_Ombre_Swirl_Fur_Bed_Dog_Lounger_Cuddler_Beds-Midwest_Metal_Products_Co._(Midwest_Homes)-MS00978-DGBDLO-vi.html',
+     'https://www.petstore.com/ps_checkout_addresses.html',
+     #'https://www.petstore.com/ps_checkout_payment.aspx'
+     ]
+
+for url in urls:
+    driver.get(url)
+    WebDriverWait(driver, 10)
+    formElements=driver.find_elements_by_tag_name("form")
+    logger = m(url, 999)
+    status=get_form_elms(driver, url, logger, formElements)
+    print(status)
