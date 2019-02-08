@@ -12,6 +12,7 @@ from selenium.common.exceptions import StaleElementReferenceException
 from bs4 import BeautifulSoup
 from crawl_new_classifier import Form_Interactive_Elems_Scrap
 from crawl_new_classifier.Form_Interactive_Elems_Scrap import Xpath_Util as xpathscrap
+from difflib import get_close_matches 
 #input - testurl | #output - dataframe (existing / empty)
 
 def read_prop_file(url,logger):
@@ -338,7 +339,6 @@ def find_elements(form_elm):
 # #===============================================================================
 #===============================================================================
 
-
 #===============================================================================
 # Importing required packages
 
@@ -347,7 +347,7 @@ def find_elements(form_elm):
 
 
 #data_dict = {0: "infosys@gmail.com", 1: "Infy1234*", 2: "Infosys", 3:"Solution", 4: "7800 Smith Rd", 5: "Denver", 6: "CO - Colorado", 7: "80022", 8: "3035612794", 9: "567", 10: "Standard", 11: "5555555555554444" , 12: "Mastercard", 13: "xyz", 14: "07", 15: "21", 16: "656", 17: "01", 18:"01"} 
-data_dict = {0: "infosys@gmail.com", 1: "Infy1234*", 2: "Infosys", 3:"Solution", 4: "7800 Smith Rd", 5: "Denver", 6: "CO - Colorado", 7: "80022", 8: "3035612794", 9: "567", 10: "Standard", 11: "5555555555554444" , 12: "Mastercard", 13: "xyz", 14: "07", 15: "21", 16: "656", 17: "01", 18:"01"}
+data_dict = {0: "infosys@gmail.com", 1: "Infy1234*", 2: "Infosys", 3:"Solution", 4: "7800 Smith Rd", 5: "Denver", 6: "CO - Colorado", 7: "80022", 8: "3035612795", 9: "567", 10: "Standard", 11: "5555555555554444" , 12: "Mastercard", 13: "xyz", 14: "07", 15: "21", 16: "656", 17: "01", 18:"01"}
 res = db_handler.get_data_for_test_field()
  
 infotype = list()
@@ -452,7 +452,7 @@ def text_elm(driver, elm, data_store,logger):
                         for listelm in each:
                             print('each listelm referred within the main list is ',listelm)
                             try:
-                                if re.search('.*' + listelm + '.*', val) is not None:
+                                if re.search('.*' + listelm.lower() + '.*', val) is not None:
                                     print('inside form->testem->nested if ')
     #                                 pos=iporder.index(each)
                                     ipval = data_dict[pos]
@@ -958,7 +958,7 @@ urls=['https://www.petstore.com/ps_login.html',
 for url in urls:
     driver.get(url)
     WebDriverWait(driver, 10)
-    formElements=driver.find_elements_by_tag_name("form")
+    formElements=driver.find_elements_by_tag_name("form") 
     logger = m(url, 999)
     status=get_form_elms(driver, url, logger, formElements)
     print(status)
