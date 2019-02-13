@@ -10,9 +10,9 @@ from selenium.webdriver.support.ui import Select
 from selenium.common.exceptions import StaleElementReferenceException
 
 from bs4 import BeautifulSoup
-from crawl_new_classifier import Form_Interactive_Elems_Scrap
 from crawl_new_classifier.Form_Interactive_Elems_Scrap import Xpath_Util as xpathscrap
 from difflib import get_close_matches 
+import traceback
 #input - testurl | #output - dataframe (existing / empty)
 
 def read_prop_file(url,logger):
@@ -42,7 +42,6 @@ def write_prop_file(data_frame, base_url):
     
 #input - url, df | output - df (frame of elements present on that page
 def get_page_attrs(url,df):
-
     if url in df.values()[0]:
         print('page history exists')
         dummy_df = df[df[0] == url]
@@ -347,7 +346,7 @@ def find_elements(form_elm):
 
 
 #data_dict = {0: "infosys@gmail.com", 1: "Infy1234*", 2: "Infosys", 3:"Solution", 4: "7800 Smith Rd", 5: "Denver", 6: "CO - Colorado", 7: "80022", 8: "3035612794", 9: "567", 10: "Standard", 11: "5555555555554444" , 12: "Mastercard", 13: "xyz", 14: "07", 15: "21", 16: "656", 17: "01", 18:"01"} 
-data_dict = {0: "infosys@gmail.com", 1: "Infy1234*", 2: "Infosys", 3:"Solution", 4: "7800 Smith Rd", 5: "Denver", 6: "CO - Colorado", 7: "80022", 8: "3035612795", 9: "567", 10: "Standard", 11: "5555555555554444" , 12: "Mastercard", 13: "xyz", 14: "07", 15: "21", 16: "656", 17: "01", 18:"01"}
+data_dict = {0: "infosys@gmail.com", 1: "Infy1234*", 2: "Infosys", 3:"Solution", 4: "7800 Smith Rd", 5: "Denver", 6: "CO - Colorado", 7: "80022", 8: "3035612795", 9: "1234567567", 10: "Standard", 11: "5555555555554444" , 12: "Mastercard", 13: "xyz", 14: "07", 15: "21", 16: "656", 17: "01", 18:"01"}
 res = db_handler.get_data_for_test_field()
  
 infotype = list()
@@ -439,11 +438,15 @@ def text_elm(driver, elm, data_store,logger):
             return data_store
         else:
             print('else segment of autofill')
-            #elm.clear()
+            elm.clear()
+            
             for info in infotype:
                 print('info is ', info[0]) #sumer info to info[0] because info is tuple with one element
                 val = elm.get_attribute(info[0]).lower() #sumer info to info[0] because info is tuple with one element
               
+                input_el = driver.find_element_by_name('A')
+                td_p_input = input_el.find_element_by_xpath('..')
+                
                 print('value is ', val)
                                 
                 if val!='':
@@ -630,314 +633,240 @@ def get_input_order(driver, url):
     return input_tags_format, input_tags_html
 
 #===============================================================================
-def grp_elms(driver, frmelm, url):
+def grp_elms(frmelms):
     print('inside grp_elms')
-    input_dict = dict()  # dictionary based on the type of inputs input_dict={ele_type(key) : list_of_elements(value)}
-    #elm_dict = list()
-    print(frmelm.get_attribute('action'))
-    elms = [elm for elm in frmelm.find_elements_by_tag_name("input") if (elm.get_attribute("type") not in [ 'hidden','file'])]
-    for elm in elms:
-        try:
-            elm_type = elm.get_attribute('type')
-            if  elm_type in input_dict.keys():
-                elm = [elm]
-                temp = input_dict[elm_type]
-                temp.extend(elm)
-                input_dict[elm_type] = temp
-            elif  elm_type not in input_dict.keys():
-                elm = [elm]
-                input_dict[elm_type] = elm
-#             else:
-#                 print(elm.get_attribute('outerHTML'))
-        except Exception as e:
-            print('exception encountered ' + str(e))
-    print('len of elms initial before buttons etc' + str(len(elms)))
-    tagnames = ['select', 'button', 'textarea' , 'a']  # possible input options on a web-page 
-    for i in tagnames:
-        print(i)
-        temp = [elm for elm in frmelm.find_elements_by_tag_name(i) if elm.get_attribute("type") not in [ 'hidden' , 'file' ] ]
-        if temp != []:
-            input_dict[i] = temp
-            elms.extend(temp)
-            print(i, len(elms))
-    print('len of elms final'+str(len(elms))) #sumer: just for print
-    return elms    #change 05nov bindiya
-    '''
-    to get the links inside the form
-    '''
+    filtered_elms = list()
+    try:
+        for elm in frmelms:
+            if elm.get_attribute("type") not in [ 'hidden','file']:
+                elm_type = elm.get_attribute('type')
+                if  elm_type is not None and elm_type in ["text","email", "radio", "password", "image", "img", "checkbox", "button", "submit", 'select', 'button', 'textarea' ]:
+                    filtered_elms.append(elm)
+    except Exception as e:
+        print('exception encountered ' + str(e))
+    print('len of elms initial before buttons etc' + str(len(filtered_elms)))
+    return filtered_elms    #change 05nov bindiya
+#===========================================================================================
 
-'''
-functions for re-ordering the elements ends here
-'''
-#=======================================================================
-# To extract the form elements of the current web page
-
-def get_form_elms(driver, url,logger, formelm):
+def get_form_elms(driver, url,logger, elements):
     try:
         print('inside get_form_elms')
-        logger.write_log_data(url)
+        logger.write_log_data("In : " + url)
         data_store = dict() #has the data entered for that form
         error_store = dict() # has the list of errors captured after the submission
         err_list = []
-        #sumer
-        print("all forms: ", formelm)#sumer
-        form=random.choice(formelm)
-        print("selected form: ", form)
-        formelm.remove(form)
-        a="check form"
-        while a == "check form":
-            els = [el for el in form.find_elements_by_tag_name("input") if (el.get_attribute("type") not in [ 'hidden','file'])]
-            if len(els)==0:
-                print("selected form has all input type as hidden or files..hence selecting another form if available")
-                if formelm:
-                    form=random.choice(formelm)
-                    formelm.remove(form)
-                    print("selected form: ", form)
-                    a="check form"
-                else:
-                    return "No relevant form"
-            else:
-                a="continue"
-            for el in form.find_elements_by_tag_name("input"):
-                input_type=el.get_attribute("type").lower()
-                input_id=el.get_attribute("id").lower()
-                if(re.search('.*search.*', input_type) is not None) or (re.search('.*search.*', input_id) is not None and (input_type not in ['hidden'])):
-                    continue
-                    print("selected form performs search task..hence selecting another form")
-                    if formelm:
-                        form=random.choice(formelm)
-                        formelm.remove(form)
-                        a="check form"
-                        break
-                    else:
-                        return "No relevant form"
-        print("final selected form: ", form) #sumer
-        #sumer
-    
-        if form is not None :
-            print('selected form is not none')
-#             selected_forms.append(formelm)
-            print(form.get_attribute('action'))
-#             global webelm_list
-            
-            xpath_obj = xpathscrap()
-            page = driver.execute_script("return document.body.innerHTML").encode('utf-8') #returns the inner HTML as a string
-            soup = BeautifulSoup(page, 'html.parser')
-            if xpath_obj.generate_xpath(soup, driver) is False:
-                print("No XPaths generated for the URL:%s"%url)
-            
-            webelm_list = grp_elms(driver, form, url)
-            print('The number of inputs possible on this page is ' + str(len(webelm_list)))
-            no_visible_counter = 0
-            if len(webelm_list) != 0: 
-                print('form has interactive elements',len(webelm_list))
-                while webelm_list or len(webelm_list):
-                    print('inside while for')
-                    elm=webelm_list.pop(0)
-                    try:
-                        print('inside webelement try :iterations remaining : elem focused no',len(webelm_list) ,elm.get_attribute('outerHTML'))
-                        #time.sleep(4)
-                        if elm.is_displayed():
-                            print('elm is displayed',elm.get_attribute('outerHTML'))
-                            if elm.get_attribute('type') == 'radio':
-                                data_store , webelm_list = radio_elm(driver, elm, webelm_list, data_store,logger)
-                                continue
-                            
-                            elif elm.get_attribute('type') == 'checkbox':
-                                #data_store , webelm_list = checkbox_elm(driver, elm, webelm_list, data_store,logger)
-                                data_store = checkbox_elm(driver, elm, webelm_list, data_store,logger)
-                                continue
-                            
-                            elif elm.tag_name == 'select': 
-                                data_store = select_elm(driver, elm, data_store,logger)
-                                continue
-                            
-                            elif elm.get_attribute('type') == 'textarea':
-                                data_store = textarea_elm(driver, elm, data_store,logger)
-                                continue
-                            
-                            elif elm.get_attribute('type') in ['text', 'password', 'email', 'tel']: #sumer 'email' added
-                                data_store = text_elm(driver, elm, data_store,logger) 
-                                continue      
-                            
-                            elif elm.tag_name == 'button' or elm.get_attribute("type") == 'submit':        
-                                if elm.get_attribute('id')!= None  and elm.get_attribute('id').lower() != 'addvgmblock' :
-                                    print('id is not none and not an add block')
-                                    val = elm.get_attribute('innerHTML')
-                                    if elm.get_attribute('type')!= None and elm.get_attribute('type') == 'submit' :#or re.search('*add*',val) is None :
-                                        print('calling buttons') 
-                                        status,data_store = check_out_button(driver,elm,data_store,logger)
-                                        if status == 'Clicked':
-                                            url_new = driver.current_url
-                                            pass
-                                        elif status == 'None':
-                                            url_new, data_store = submit_btns(driver, elm, data_store,logger)
-            #                                 if status:
-                                            
-                                        err_list = record_errors(driver, url, error_store)
-                                        logger.write_log_data(err_list)
-                                        print('random_url: ', url_new)
-    #                                     if url_new is None:
-    #                                         print(5)
-    #                                         continue
-                #                             return None,data_store,error_store
-    #                                     if webelm_list.index(elm)==(len(webelm_list)-1):
-                                        if isinstance(url_new, str) and url_new != url and len(webelm_list)==0:
-                                            print('is instance')
-                                            od=OrderedDict(data_store)
-                                            elm=od.popitem()
-                                            return [driver.current_url, elm[1], elm[0], driver.title,len(err_list.values())]
-#                                     else: continue
-                                else:
-                                    print('8b')
-                                    elm_text=elm.get_attribute('innerHTML')
-                                    if elm_text!= None :
-                                        elm_text = elm_text.lower()
-                                        if elm_text.startswith('erase') or elm_text.startswith('remove') or elm_text.startswith('delete') or elm_text.startswith('close'):
-                                            logger.write_log_data('Button named with erase / remove / delete / close  is encountered. Hence ignored')
-                                            continue
-                                    xpath = get_locator(driver, elm)
-                                    name = driver.find_element_by_xpath(xpath)
-                                    name1=name.text
-                                    val = 'click on ' + str(name1)
-                                    data_store = save_data(driver, elm,val, data_store,logger)
-                                    elm.click()
-                                    continue
-                                
-                            elif elm.tag_name == 'a':
-                                print('link is encountered')
-                                print(elm.get_attribute('href'))
-                                try: 
-                                    print('inside try block of link')
-                                    etext = elm.text
-                                    elink_flag=False
-                                    
-                                    print(etext,elink_flag)
-                                    if etext != None:
-                                        elm_title=etext.lower()
-                                        if elm_title.startswith('delete') or elm_title.startswith('modify') or elm_title.startswith('remove') or elm_title.startswith('close'):
-                                            elink_flag = True
-                                        if not elink_flag :
-                                            print('has no delete .. hence clicked')
-                                            link = get_locator(driver, elm)
-                                            name = driver.find_element_by_xpath(link)
-                                            name1 = name.get_attribute('innerHTML')
-                                            val = 'click on ' + str(name1)
-                                            print(val)
-                                            data_store = save_data(driver, elm,val, data_store,logger)
-                                            logger.write_log_data(val)
-                                            elm.click()
-                                            continue
-                                        else:
-                                            print('Has  delete. Hence ignored')
-                                            link = get_locator(driver, elm)
-    #                                         driver.find_element_by_xpath(link).click()
-                                            name = driver.find_element_by_xpath(link)
-                                            name1 = name.get_attribute('innerHTML')
-                                            val = 'click on ' + str(name1) + ' is ignored as it contains delete/remove/modify/erase'
-                                            print(val)
-    #                                         data_store[link] = val
-#                                             data_store = save_data(driver, elm,val, data_store,logger)
-                                            logger.write_log_data(val)
-    #                                         elm.click()
-                                            continue
+        
+        webelm_list = grp_elms(elements)
+
+        print('The number of inputs possible on this page is ' + str(len(webelm_list)))
+        no_visible_counter = 0
+        if len(webelm_list) != 0: 
+            print('form has interactive elements',len(webelm_list))
+            while webelm_list or len(webelm_list):
+                print('inside while for')
+                elm=webelm_list.pop(0)
+                try:
+                    print('inside webelement try :iterations remaining : elem focused no',len(webelm_list) ,elm.get_attribute('outerHTML'))
+                    #time.sleep(4)
+                    if elm.is_displayed():
+                        print('elm is displayed',elm.get_attribute('outerHTML'))
+                        if elm.get_attribute('type') == 'radio':
+                            data_store , webelm_list = radio_elm(driver, elm, webelm_list, data_store,logger)
+                            continue
+                        
+                        elif elm.get_attribute('type') == 'checkbox':
+                            #data_store , webelm_list = checkbox_elm(driver, elm, webelm_list, data_store,logger)
+                            data_store = checkbox_elm(driver, elm, webelm_list, data_store,logger)
+                            continue
+                        
+                        elif elm.tag_name == 'select': 
+                            data_store = select_elm(driver, elm, data_store,logger)
+                            continue
+                        
+                        elif elm.get_attribute('type') == 'textarea':
+                            data_store = textarea_elm(driver, elm, data_store,logger)
+                            continue
+                        
+                        elif elm.get_attribute('type') in ['text', 'password', 'email', 'tel']: #sumer 'email' added
+                            data_store = text_elm(driver, elm, data_store,logger) 
+                            continue      
+                        
+                        elif elm.tag_name == 'button' or elm.get_attribute("type") == 'submit':        
+                            if elm.get_attribute('id')!= None  and elm.get_attribute('id').lower() != 'addvgmblock' :
+                                print('id is not none and not an add block')
+                                val = elm.get_attribute('innerHTML')
+                                if elm.get_attribute('type')!= None and elm.get_attribute('type') == 'submit' :#or re.search('*add*',val) is None :
+                                    print('calling buttons') 
+                                    status,data_store = check_out_button(driver,elm,data_store,logger)
+                                    if status == 'Clicked':
+                                        url_new = driver.current_url
+                                        pass
+                                    elif status == 'None':
+                                        url_new, data_store = submit_btns(driver, elm, data_store,logger)
+        #                                 if status:
                                         
-                                    else:
-                                        print('other link')
+                                    err_list = record_errors(driver, url, error_store)
+                                    logger.write_log_data(err_list)
+                                    print('random_url: ', url_new)
+#                                     if url_new is None:
+#                                         print(5)
+#                                         continue
+            #                             return None,data_store,error_store
+#                                     if webelm_list.index(elm)==(len(webelm_list)-1):
+                                    if isinstance(url_new, str) and url_new != url and len(webelm_list)==0:
+                                        print('is instance')
+                                        od=OrderedDict(data_store)
+                                        elm=od.popitem()
+                                        return [driver.current_url, elm[1], elm[0], driver.title,len(err_list.values())]
+#                                     else: continue
+                            else:
+                                print('8b')
+                                elm_text=elm.get_attribute('innerHTML')
+                                if elm_text!= None :
+                                    elm_text = elm_text.lower()
+                                    if elm_text.startswith('erase') or elm_text.startswith('remove') or elm_text.startswith('delete') or elm_text.startswith('close'):
+                                        logger.write_log_data('Button named with erase / remove / delete / close  is encountered. Hence ignored')
+                                        continue
+                                xpath = get_locator(driver, elm)
+                                name = driver.find_element_by_xpath(xpath)
+                                name1=name.text
+                                val = 'click on ' + str(name1)
+                                data_store = save_data(driver, elm,val, data_store,logger)
+                                elm.click()
+                                continue
+                            
+                        elif elm.tag_name == 'a':
+                            print('link is encountered')
+                            print(elm.get_attribute('href'))
+                            try: 
+                                print('inside try block of link')
+                                etext = elm.text
+                                elink_flag=False
+                                
+                                print(etext,elink_flag)
+                                if etext != None:
+                                    elm_title=etext.lower()
+                                    if elm_title.startswith('delete') or elm_title.startswith('modify') or elm_title.startswith('remove') or elm_title.startswith('close'):
+                                        elink_flag = True
+                                    if not elink_flag :
+                                        print('has no delete .. hence clicked')
                                         link = get_locator(driver, elm)
                                         name = driver.find_element_by_xpath(link)
                                         name1 = name.get_attribute('innerHTML')
                                         val = 'click on ' + str(name1)
                                         print(val)
                                         data_store = save_data(driver, elm,val, data_store,logger)
-#                                         logger.write_log_data(val)
+                                        logger.write_log_data(val)
                                         elm.click()
                                         continue
-                                        
-                                except Exception as e:
-                                    print('Link has no title')
-                            elif elm.get_attribute('type')== 'submit' : #sumer added or elm.get_attribute('type')== 'button'
+                                    else:
+                                        print('Has  delete. Hence ignored')
+                                        link = get_locator(driver, elm)
+#                                         driver.find_element_by_xpath(link).click()
+                                        name = driver.find_element_by_xpath(link)
+                                        name1 = name.get_attribute('innerHTML')
+                                        val = 'click on ' + str(name1) + ' is ignored as it contains delete/remove/modify/erase'
+                                        print(val)
+#                                         data_store[link] = val
+#                                             data_store = save_data(driver, elm,val, data_store,logger)
+                                        logger.write_log_data(val)
+#                                         elm.click()
+                                        continue
                                     
-                                    url_new, data_store = submit_btns(driver, elm, data_store,logger)
-        #                                 if status:
+                                else:
+                                    print('other link')
+                                    link = get_locator(driver, elm)
+                                    name = driver.find_element_by_xpath(link)
+                                    name1 = name.get_attribute('innerHTML')
+                                    val = 'click on ' + str(name1)
+                                    print(val)
+                                    data_store = save_data(driver, elm,val, data_store,logger)
+#                                         logger.write_log_data(val)
+                                    elm.click()
+                                    continue
+                                    
+                            except Exception as e:
+                                print('Link has no title')
+                        elif elm.get_attribute('type')== 'submit' : #sumer added or elm.get_attribute('type')== 'button'
+                                
+                                url_new, data_store = submit_btns(driver, elm, data_store,logger)
+    #                                 if status:
+                                    
+                                err_list = record_errors(driver, url, error_store)
+                                logger.write_log_data(err_list)
+                                print('random_url: ', url_new)
+#                                     if url_new is None:
+#                                         print(5)
+#                                         continue
+        #                             return None,data_store,error_store
+#                                     if webelm_list.index(elm)==(len(webelm_list)-1):
+                                if isinstance(url_new, str) and url_new != url and len(webelm_list)==0:
+                                    print('is instance')
+                                    od=OrderedDict(data_store)
+                                    elm=od.popitem()
+                                    return [driver.current_url, elm[1], elm[0], driver.title,len(err_list.values())]
                                         
-                                    err_list = record_errors(driver, url, error_store)
-                                    logger.write_log_data(err_list)
-                                    print('random_url: ', url_new)
-    #                                     if url_new is None:
-    #                                         print(5)
-    #                                         continue
-            #                             return None,data_store,error_store
-    #                                     if webelm_list.index(elm)==(len(webelm_list)-1):
-                                    if isinstance(url_new, str) and url_new != url and len(webelm_list)==0:
-                                        print('is instance')
-                                        od=OrderedDict(data_store)
-                                        elm=od.popitem()
-                                        return [driver.current_url, elm[1], elm[0], driver.title,len(err_list.values())]
-                                            
-                        else:
-                            print(2)
-                            print('element is not visible. Hence cannot perform an action. Hence increasing no visible counter')
-                            no_visible_counter +=1
-                            continue
-                    except StaleElementReferenceException as se:
-                        print('se1 inside a while loop')
-                        print(se)
+                    else:
+                        print(2)
+                        print('element is not visible. Hence cannot perform an action. Hence increasing no visible counter')
+                        no_visible_counter +=1
                         continue
-                    except Exception as e:
-                        print('Exception occurred inside try within while loop as ' + e)
-                        continue
-                
+                except StaleElementReferenceException as se:
+                    print('se1 inside a while loop')
+                    print(se)
+                    continue
+                except Exception as e:
+                    print('Exception occurred inside try within while loop as ' + e)
+                    continue
+            
 #                 if driver.current_url == url:
 #                     print('link is within a form - hence continued')
 #                     continue
 #                 else:
 #                 logger.write_log_data('all the webelements are interacted. hence considered to be a new state : ',driver.current_url)
-                print('all the webelements are interacted. hence considered to be a new state : ',driver.current_url)
-                logger.write_log_data(data_store)
-                
-                if data_store != {}:#change !alter this condition
-                    print('No submit elements are found on that page ')
-                    od=OrderedDict(data_store)
-                    elm=od.popitem()
-                    return [driver.current_url, elm[1], elm[0], driver.title,len(err_list)] #sumer err_list.values to err_list
-                
-                if no_visible_counter == len(webelm_list) or data_store == {}:
-                    logger.write_log_data(data_store)
-                    return 'No visible form found!'
-                
-                #===============================================================
-                # if no_visible_counter == len(webelm_list):
-                #     logger.write_log_data(data_store)
-                #     
-                #     return 'No visible form found!'
-                #===============================================================
-                print('Data used for the current session is as follows \n' + str(data_store))
-    #             print('Total number of errors encountered in the current session is {} .\n Errors encountered are as follows :{}'.format(len(err_list), err_list))
-            try:
-                logger.write_log_data(data_store)
+            print('all the webelements are interacted. hence considered to be a new state : ',driver.current_url)
+            logger.write_log_data(data_store)
+            
+            if data_store != {}:#change !alter this condition
+                print('No submit elements are found on that page ')
                 od=OrderedDict(data_store)
                 elm=od.popitem()
-                return [driver.current_url, elm[1], elm[0], driver.title,0]
-            except Exception as ex:
-                print('in 3 lines')
-                print(ex)
-            #else of (len(webelmlist)!=0
-            return 'No visible form found!'
+                return [driver.current_url, elm[1], elm[0], driver.title,len(err_list)] #sumer err_list.values to err_list
             
-        else:
-            return 'No visible form found!'
+            if no_visible_counter == len(webelm_list) or data_store == {}:
+                logger.write_log_data(data_store)
+                return 'No visible form found!'
+            
+            #===============================================================
+            # if no_visible_counter == len(webelm_list):
+            #     logger.write_log_data(data_store)
+            #     
+            #     return 'No visible form found!'
+            #===============================================================
+            print('Data used for the current session is as follows \n' + str(data_store))
+#             print('Total number of errors encountered in the current session is {} .\n Errors encountered are as follows :{}'.format(len(err_list), err_list))
+        try:
+            logger.write_log_data(data_store)
+            od=OrderedDict(data_store)
+            elm=od.popitem()
+            return [driver.current_url, elm[1], elm[0], driver.title,0]
+        except Exception as ex:
+            print('in 3 lines')
+            print(ex)
+        #else of (len(webelmlist)!=0
+        return 'No visible form found!'
+
 #             logger.write_log_data(data_store)
 #             return [driver.current_url, data_store.values()[-1], data_store.keys()[-1], driver.title]
 #     
     except StaleElementReferenceException as se:
         print('se2')
         print(se)
-        logger.write_log_data(str(se))
+        logger.write_log_data(traceback.format_exc())
          
     except Exception as e:
         print('Exception occurred as {}'.format(e))
-        logger.write_log_data(str(e))
+        logger.write_log_data(traceback.format_exc())
         return 'Could not handle form'
         
 
@@ -947,18 +876,56 @@ from selenium.webdriver.support.ui import WebDriverWait
 from crawl_new_classifier.properties import DAProperties
 from crawl_new_classifier.logg import ManualLogger as m
 driver=webdriver.Chrome(executable_path=DAProperties.CHROME_DRIVER.value)
-urls=['https://www.petstore.com/ps_login.html',
+urls=[
+     'https://www.petstore.com/ps_homepage.aspx',
+     #'https://www.petstore.com/ps_login.html',
      #'https://www.petstore.com/ps_homepage.aspx',
      #'https://www.petstore.com/Dog_Beds-DGBD-ct.html',
-    # 'https://www.petstore.com/Mid_West_Metal_Ombre_Swirl_Fur_Bed_Dog_Lounger_Cuddler_Beds-Midwest_Metal_Products_Co._(Midwest_Homes)-MS00978-DGBDLO-vi.html',
-     'https://www.petstore.com/ps_checkout_addresses.html',
+     #'https://www.petstore.com/Mid_West_Metal_Ombre_Swirl_Fur_Bed_Dog_Lounger_Cuddler_Beds-Midwest_Metal_Products_Co._(Midwest_Homes)-MS00978-DGBDLO-vi.html',
+     #'https://www.petstore.com/ps_checkout_addresses.html',
      #'https://www.petstore.com/ps_checkout_payment.aspx'
      ]
-
-for url in urls:
-    driver.get(url)
-    WebDriverWait(driver, 10)
-    formElements=driver.find_elements_by_tag_name("form") 
+try:
+    for url in urls:
+        driver.get(url)
+        WebDriverWait(driver, 10)
+        #elements = driver.find_elements_by_xpath("//*[not(*)]")# //*[not(*)] means, that you are looking for element with any tag which doesn't contain any other tag, i.e. element.
+        elements = driver.find_elements_by_tag_name("input")
+        
+        print("Elements : ", len(elements))
+        for element in elements:
+            print("Input Elements : ", element.get_attribute('outerHTML'))
+            xpath = get_locator(driver, element)
+            print("xpath :" , xpath)
+            div_elms = driver.find_elements_by_xpath(xpath)
+            for div_elm in div_elms:
+                print("Div elements :", div_elm.get_attribute('outerHTML'))
+        """
+        logger = m(url, 999)
+        if len(elements) > 0:
+            status=get_form_elms(driver, url, logger, elements)
+            print(status)
+        """
+        
+        
+        """
+        page = driver.execute_script("return document.body.innerHTML").encode('utf-8') #returns the inner HTML as a string
+        soup = BeautifulSoup(page, 'html.parser')
+        for i in soup.find_all():
+            if (i.has_attr("type") and i["type"]!= "hidden" and (i["type"]).lower() in ["text","email", "radio", "password", "image", "img", "checkbox", "button", "submit"])\
+             or (i.has_attr("select")):
+                print("type....", i.prettify())
+        """
+except Exception as e:
+    print(traceback.format_exc())
+            
+    
+    """
+    formElements=driver.find_elements_by_tag_name("form")
     logger = m(url, 999)
-    status=get_form_elms(driver, url, logger, formElements)
-    print(status)
+    if len(formElements) > 0:
+        status=get_form_elms(driver, url, logger, formElements)
+        print(status)
+    else:
+        pass
+    """
