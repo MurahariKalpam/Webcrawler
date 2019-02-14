@@ -1,3 +1,8 @@
+'''
+Created on Dec 10, 2018
+
+@author: bindiya.r
+'''
 import crawl_new_classifier.py_m_connect as db_handler
 import os , random, time, re , string
 import pandas as pd
@@ -13,6 +18,8 @@ from bs4 import BeautifulSoup
 from crawl_new_classifier.Form_Interactive_Elems_Scrap import Xpath_Util as xpathscrap
 from difflib import get_close_matches 
 import traceback
+from selenium.webdriver.remote.webelement import WebElement
+from numba.types import none
 #input - testurl | #output - dataframe (existing / empty)
 
 def read_prop_file(url,logger):
@@ -197,6 +204,9 @@ def submit_btns(driver, elm, url, data_store, logger):
         data_store[xpath] = val
         logger.write_log_data(val)
         elm.click()
+        
+        handlesubmitform(driver, url)
+        
     except Exception as e:
         print('Error occurred while submitting a form')
         print(e)
@@ -338,6 +348,12 @@ def find_elements(form_elm):
 # #===============================================================================
 #===============================================================================
 
+'''
+Created on Jul 13, 2018
+
+@author: bindiya.r
+'''
+
 #===============================================================================
 # Importing required packages
 
@@ -346,7 +362,7 @@ def find_elements(form_elm):
 
 
 #data_dict = {0: "infosys@gmail.com", 1: "Infy1234*", 2: "Infosys", 3:"Solution", 4: "7800 Smith Rd", 5: "Denver", 6: "CO - Colorado", 7: "80022", 8: "3035612794", 9: "567", 10: "Standard", 11: "5555555555554444" , 12: "Mastercard", 13: "xyz", 14: "07", 15: "21", 16: "656", 17: "01", 18:"01"} 
-data_dict = {0: "infosys@gmail.com", 1: "Infy1234*", 2: "Infosys", 3:"Solution", 4: "7800 Smith Rd", 5: "Denver", 6: "CO - Colorado", 7: "80022", 8: "3035612795", 9: "1234567567", 10: "Standard", 11: "5555555555554444" , 12: "Mastercard", 13: "xyz", 14: "07", 15: "21", 16: "656", 17: "01", 18:"01"}
+data_dict = {0: "infosys@gmail.com", 1: "Infy1234*", 2: "Infosys", 3:"Solution", 4: "7800 Smith Rd", 5: "Denver", 6: "CO - Colorado", 7: "80022", 8: "3035612795", 9: "1234567567", 10: "Standard", 11: "5555555555554444" , 12: "Mastercard", 13: "xyz", 14: "07", 15: "21", 16: "656", 17: "01", 18:"01", 19:"search order"}
 res = db_handler.get_data_for_test_field()
  
 infotype = list()
@@ -444,8 +460,8 @@ def text_elm(driver, elm, data_store,logger):
                 print('info is ', info[0]) #sumer info to info[0] because info is tuple with one element
                 val = elm.get_attribute(info[0]).lower() #sumer info to info[0] because info is tuple with one element
               
-                input_el = driver.find_element_by_name('A')
-                td_p_input = input_el.find_element_by_xpath('..')
+                #input_el = driver.find_element_by_name('A')
+                #td_p_input = input_el.find_element_by_xpath('..')
                 
                 print('value is ', val)
                                 
@@ -470,16 +486,16 @@ def text_elm(driver, elm, data_store,logger):
                                 
                                 logger.write_log_data('data not available in data_dict')
                                 continue
-                
-            # if a field is required and the database doesn't contain relevant data then input a random text to a field and continue
-            if flag == 0 and re.search('required', elm.get_attribute('outerHTML')):
-                print('inside form->testem->if2 is a required field ')
-                text = ''.join(choice(string.ascii_letters) for _ in range(random.randint(2, 4)))
+            
+        # if a field is required and the database doesn't contain relevant data then input a random text to a field and continue
+        if flag == 0: #and re.search('required', elm.get_attribute('outerHTML')):
+            print('inside form->testem->if2 is a required field ')
+            text = ''.join(choice(string.ascii_letters) for _ in range(random.randint(2, 4)))
 #                 ipval=data_dict[pos]
-                data_store = save_data(driver, elm, text, data_store,logger)
-                elm.send_keys(text)
-                flag = 1
-                return data_store
+            data_store = save_data(driver, elm, text, data_store,logger)
+            elm.send_keys(text)
+            flag = 1
+            return data_store
         #sumer    
         #=======================================================================
         # else:
@@ -635,17 +651,19 @@ def get_input_order(driver, url):
 #===============================================================================
 def grp_elms(frmelms):
     print('inside grp_elms')
-    filtered_elms = list()
+    interactive_elms = list()
+    #inpt_elems = frmelms.get_attribute("outerHTML")
     try:
         for elm in frmelms:
             if elm.get_attribute("type") not in [ 'hidden','file']:
                 elm_type = elm.get_attribute('type')
-                if  elm_type is not None and elm_type in ["text","email", "radio", "password", "image", "img", "checkbox", "button", "submit", 'select', 'button', 'textarea' ]:
-                    filtered_elms.append(elm)
+                if  elm_type is not None and elm_type in ["text","email", "radio", "password", "image", "img", "checkbox", "button", "submit", 'select', 'button', 'textarea' , "a"]:
+                    print(elm.get_attribute("outerHTML"))
+                    interactive_elms.append(elm)
     except Exception as e:
         print('exception encountered ' + str(e))
-    print('len of elms initial before buttons etc' + str(len(filtered_elms)))
-    return filtered_elms    #change 05nov bindiya
+    print('len of elms initial before buttons etc' + str(len(interactive_elms)))
+    return interactive_elms    #change 05nov bindiya
 #===========================================================================================
 
 def get_form_elms(driver, url,logger, elements):
@@ -691,7 +709,7 @@ def get_form_elms(driver, url,logger, elements):
                             data_store = text_elm(driver, elm, data_store,logger) 
                             continue      
                         
-                        elif elm.tag_name == 'button' or elm.get_attribute("type") == 'submit':        
+                        elif elm.tag_name == 'button' or elm.get_attribute('type') == 'button'  or elm.get_attribute("type") == 'submit':        
                             if elm.get_attribute('id')!= None  and elm.get_attribute('id').lower() != 'addvgmblock' :
                                 print('id is not none and not an add block')
                                 val = elm.get_attribute('innerHTML')
@@ -868,8 +886,17 @@ def get_form_elms(driver, url,logger, elements):
         print('Exception occurred as {}'.format(e))
         logger.write_log_data(traceback.format_exc())
         return 'Could not handle form'
-        
 
+element_stack = False        
+def handlesubmitform(driver, url):
+    global element_stack
+    WebDriverWait(driver, 10)
+    if url == driver.current_url:
+        pass
+    else:
+        element_stack = True
+        
+        
 
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
@@ -878,54 +905,46 @@ from crawl_new_classifier.logg import ManualLogger as m
 driver=webdriver.Chrome(executable_path=DAProperties.CHROME_DRIVER.value)
 urls=[
      'https://www.petstore.com/ps_homepage.aspx',
-     #'https://www.petstore.com/ps_login.html',
-     #'https://www.petstore.com/ps_homepage.aspx',
-     #'https://www.petstore.com/Dog_Beds-DGBD-ct.html',
-     #'https://www.petstore.com/Mid_West_Metal_Ombre_Swirl_Fur_Bed_Dog_Lounger_Cuddler_Beds-Midwest_Metal_Products_Co._(Midwest_Homes)-MS00978-DGBDLO-vi.html',
-     #'https://www.petstore.com/ps_checkout_addresses.html',
-     #'https://www.petstore.com/ps_checkout_payment.aspx'
+     'https://www.petstore.com/ps_login.html',
+     'https://www.petstore.com/ps_homepage.aspx',
+     'https://www.petstore.com/Dog_Beds-DGBD-ct.html',
+     'https://www.petstore.com/Mid_West_Metal_Ombre_Swirl_Fur_Bed_Dog_Lounger_Cuddler_Beds-Midwest_Metal_Products_Co._(Midwest_Homes)-MS00978-DGBDLO-vi.html',
+     'https://www.petstore.com/ps_checkout_addresses.html',
+     'https://www.petstore.com/ps_checkout_payment.aspx'
      ]
 try:
     for url in urls:
         driver.get(url)
         WebDriverWait(driver, 10)
-        #elements = driver.find_elements_by_xpath("//*[not(*)]")# //*[not(*)] means, that you are looking for element with any tag which doesn't contain any other tag, i.e. element.
-        elements = driver.find_elements_by_tag_name("input")
-        
-        print("Elements : ", len(elements))
-        for element in elements:
-            print("Input Elements : ", element.get_attribute('outerHTML'))
-            xpath = get_locator(driver, element)
-            print("xpath :" , xpath)
-            div_elms = driver.find_elements_by_xpath(xpath)
-            for div_elm in div_elms:
-                print("Div elements :", div_elm.get_attribute('outerHTML'))
-        """
         logger = m(url, 999)
-        if len(elements) > 0:
-            status=get_form_elms(driver, url, logger, elements)
-            print(status)
-        """
+
+        #Get all the input elements of webpage
+        filtered_input_elements = [raw_input_element for raw_input_element in driver.find_elements_by_tag_name("input") if raw_input_element.get_attribute("type") not in [ 'hidden','file']]
+
+        div_elements_having_input_elements = set()
+        div_elements_having_input_elements_xpath = list()
         
+        for input_element in filtered_input_elements:
+            print("out Elements : ", input_element.get_attribute('outerHTML'))
+            xpath = get_locator(driver, input_element)
+            print("xpath :" , xpath)
+            
+            parent_element = input_element.find_element_by_xpath('..') # get the parent element
+            print(parent_element.get_attribute('outerHTML'))
+                
+            #Get all elements from parent element
+            all_elements_of_parent = parent_element.find_elements_by_tag_name("*")
+            
+            if parent_element.get_attribute('outerHTML') not in div_elements_having_input_elements:
+                div_elements_having_input_element = parent_element.get_attribute('outerHTML')
+                div_elements_having_input_elements.add(div_elements_having_input_element)
+                status=get_form_elms(driver, url, logger, all_elements_of_parent)
+                print(status)
+                
+                if element_stack:
+                    break;
+                
+        print("No.of Input Elements : ", len(div_elements_having_input_elements))
         
-        """
-        page = driver.execute_script("return document.body.innerHTML").encode('utf-8') #returns the inner HTML as a string
-        soup = BeautifulSoup(page, 'html.parser')
-        for i in soup.find_all():
-            if (i.has_attr("type") and i["type"]!= "hidden" and (i["type"]).lower() in ["text","email", "radio", "password", "image", "img", "checkbox", "button", "submit"])\
-             or (i.has_attr("select")):
-                print("type....", i.prettify())
-        """
 except Exception as e:
     print(traceback.format_exc())
-            
-    
-    """
-    formElements=driver.find_elements_by_tag_name("form")
-    logger = m(url, 999)
-    if len(formElements) > 0:
-        status=get_form_elms(driver, url, logger, formElements)
-        print(status)
-    else:
-        pass
-    """
