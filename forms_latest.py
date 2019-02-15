@@ -1,8 +1,3 @@
-'''
-Created on Dec 10, 2018
-
-@author: bindiya.r
-'''
 import crawl_new_classifier.py_m_connect as db_handler
 import os , random, time, re , string
 import pandas as pd
@@ -347,12 +342,6 @@ def find_elements(form_elm):
 # # print('finish')
 # #===============================================================================
 #===============================================================================
-
-'''
-Created on Jul 13, 2018
-
-@author: bindiya.r
-'''
 
 #===============================================================================
 # Importing required packages
@@ -905,12 +894,12 @@ from crawl_new_classifier.logg import ManualLogger as m
 driver=webdriver.Chrome(executable_path=DAProperties.CHROME_DRIVER.value)
 urls=[
      'https://www.petstore.com/ps_homepage.aspx',
-     'https://www.petstore.com/ps_login.html',
-     'https://www.petstore.com/ps_homepage.aspx',
-     'https://www.petstore.com/Dog_Beds-DGBD-ct.html',
-     'https://www.petstore.com/Mid_West_Metal_Ombre_Swirl_Fur_Bed_Dog_Lounger_Cuddler_Beds-Midwest_Metal_Products_Co._(Midwest_Homes)-MS00978-DGBDLO-vi.html',
-     'https://www.petstore.com/ps_checkout_addresses.html',
-     'https://www.petstore.com/ps_checkout_payment.aspx'
+     #'https://www.petstore.com/ps_login.html',
+     #'https://www.petstore.com/ps_homepage.aspx',
+     #'https://www.petstore.com/Dog_Beds-DGBD-ct.html',
+     #'https://www.petstore.com/Mid_West_Metal_Ombre_Swirl_Fur_Bed_Dog_Lounger_Cuddler_Beds-Midwest_Metal_Products_Co._(Midwest_Homes)-MS00978-DGBDLO-vi.html',
+     #'https://www.petstore.com/ps_checkout_addresses.html',
+     #'https://www.petstore.com/ps_checkout_payment.aspx'
      ]
 try:
     for url in urls:
@@ -923,28 +912,30 @@ try:
 
         div_elements_having_input_elements = set()
         div_elements_having_input_elements_xpath = list()
-        
-        for input_element in filtered_input_elements:
-            print("out Elements : ", input_element.get_attribute('outerHTML'))
-            xpath = get_locator(driver, input_element)
-            print("xpath :" , xpath)
-            
-            parent_element = input_element.find_element_by_xpath('..') # get the parent element
-            print(parent_element.get_attribute('outerHTML'))
+        try:
+            for input_element in filtered_input_elements:
+                print("out Elements : ", input_element.get_attribute('outerHTML'))
+                xpath = get_locator(driver, input_element)
+                print("xpath :" , xpath)
                 
-            #Get all elements from parent element
-            all_elements_of_parent = parent_element.find_elements_by_tag_name("*")
-            
-            if parent_element.get_attribute('outerHTML') not in div_elements_having_input_elements:
-                div_elements_having_input_element = parent_element.get_attribute('outerHTML')
-                div_elements_having_input_elements.add(div_elements_having_input_element)
-                status=get_form_elms(driver, url, logger, all_elements_of_parent)
-                print(status)
+                parent_element = input_element.find_element_by_xpath('..') # get the parent element
+                print(parent_element.get_attribute('outerHTML'))
+                    
+                #Get all elements from parent element
+                all_elements_of_parent = parent_element.find_elements_by_tag_name("*")
                 
-                if element_stack:
-                    break;
-                
-        print("No.of Input Elements : ", len(div_elements_having_input_elements))
-        
+                if parent_element.get_attribute('outerHTML') not in div_elements_having_input_elements:
+                    div_elements_having_input_element = parent_element.get_attribute('outerHTML')
+                    div_elements_having_input_elements.add(div_elements_having_input_element)
+                    status=get_form_elms(driver, url, logger, all_elements_of_parent)
+                    print(status)
+                    
+                    if element_stack:
+                        break;
+                    
+            print("No.of Input Elements : ", len(div_elements_having_input_elements))
+        except Exception as e:
+            print(traceback.format_exc())
+            continue
 except Exception as e:
     print(traceback.format_exc())
