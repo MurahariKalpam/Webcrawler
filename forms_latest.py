@@ -10,7 +10,7 @@ from selenium.webdriver.support.ui import Select
 from selenium.common.exceptions import StaleElementReferenceException
 
 from bs4 import BeautifulSoup
-from crawl_new_classifier.Form_Interactive_Elems_Scrap import Xpath_Util as xpathscrap
+#from crawl_new_classifier.Form_Interactive_Elems_Scrap import Xpath_Util as xpathscrap
 from difflib import get_close_matches 
 import traceback
 from selenium.webdriver.remote.webelement import WebElement
@@ -449,7 +449,7 @@ def text_elm(driver, elm, data_store,logger):
             return data_store
         else:
             print('else segment of autofill')
-            elm.clear()
+            
             
             for info in infotype:
                 print('info is ', info[0]) #sumer info to info[0] because info is tuple with one element
@@ -472,6 +472,7 @@ def text_elm(driver, elm, data_store,logger):
                                     ipval = data_dict[pos]
                                     data_store = save_data(driver, elm, ipval, data_store,logger)
                                     #if elm.get_attribute("value") is '':
+                                    elm.clear()
                                     elm.send_keys(ipval)
                                     flag = 1
                                     return data_store
@@ -781,6 +782,7 @@ def get_form_elms(driver, url,logger, elements):
                                         data_store = save_data(driver, elm,val, data_store,logger)
                                         logger.write_log_data(val)
                                         elm.click()
+                                        handleNewState(driver, url)
                                         continue
                                     else:
                                         print('Has  delete. Hence ignored')
@@ -911,9 +913,8 @@ def handleNewState(driver, old_url):
     
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
-from crawl_new_classifier.properties import DAProperties
 from crawl_new_classifier.logg import ManualLogger as m
-driver=webdriver.Chrome(executable_path=DAProperties.CHROME_DRIVER.value)
+driver=webdriver.Chrome(executable_path="F:\\MachineLearning\\share\\pythoncode\\Crawler\\chromedriver.exe")
 div_elements_having_input_elements_xpath = set()
 div_elements_having_input_elements = set()
 urls=[
