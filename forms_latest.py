@@ -15,6 +15,7 @@ from difflib import get_close_matches
 import traceback
 from selenium.webdriver.remote.webelement import WebElement
 from numba.types import none
+#from crawl_new_classifier.business_validations import driver
 #input - testurl | #output - dataframe (existing / empty)
 
 def read_prop_file(url,logger):
@@ -168,6 +169,11 @@ def select_elm(driver, elm, data_store, logger):
         options1 = [o.text for o in select.options]
         options = options1[1:]
         if elm.get_attribute('value') == options1[0]:
+            option = random.choice(options)
+            select.select_by_visible_text(option)
+            print('element selected is ' + option)
+            data_store = save_data(driver, elm, option, data_store, logger)
+        else:
             option = random.choice(options)
             select.select_by_visible_text(option)
             print('element selected is ' + option)
@@ -351,7 +357,7 @@ def find_elements(form_elm):
 
 
 #data_dict = {0: "infosys@gmail.com", 1: "Infy1234*", 2: "Infosys", 3:"Solution", 4: "7800 Smith Rd", 5: "Denver", 6: "CO - Colorado", 7: "80022", 8: "3035612794", 9: "567", 10: "Standard", 11: "5555555555554444" , 12: "Mastercard", 13: "xyz", 14: "07", 15: "21", 16: "656", 17: "01", 18:"01"} 
-data_dict = {0: "infosys@gmail.com", 1: "Infy1234*", 2: "Infosys", 3:"Solution", 4: "7800 Smith Rd", 5: "Denver", 6: "CO - Colorado", 7: "80022", 8: "3035612795", 9: "1234567567", 10: "Standard", 11: "5555555555554444" , 12: "Mastercard", 13: "xyz", 14: "07", 15: "21", 16: "656", 17: "01", 18:"01", 19:"search order"}
+data_dict = {0: "infosys@gmail.com", 1: "Infy1234*", 2: "Infosys", 3:"Solution", 4: "7800 Smith Rd", 5: "Denver", 6: "CO - Colorado", 7: "80022", 8: "3035612795", 9: "1234567567", 10: "Standard", 11: "5555555555554444" , 12: "Mastercard", 13: "xyz", 14: "07", 15: "21", 16: "656", 17: "01", 18:"01", 19:"food", 20:"cpn123", 21:"gift123"}
 res = db_handler.get_data_for_test_field()
  
 infotype = list()
@@ -448,7 +454,7 @@ def text_elm(driver, elm, data_store,logger):
             for info in infotype:
                 print('info is ', info[0]) #sumer info to info[0] because info is tuple with one element
                 val = elm.get_attribute(info[0]).lower() #sumer info to info[0] because info is tuple with one element
-              
+                val = ''.join(e for e in val if e.isalnum())
                 #input_el = driver.find_element_by_name('A')
                 #td_p_input = input_el.find_element_by_xpath('..')
                 
@@ -541,7 +547,10 @@ def check_out_button(driver,button,data_store,logger):
         try:
             button.click()
             #time.sleep(30)
-            
+            ipval = 'click on '+ elm
+            data_store = save_data(driver, elm, ipval, data_store, logger)
+            return 'Clicked',data_store
+            """
             if re.search('.*Add To Bag*.', val) is not None:
                 #self.driver.get("https://uat.ulta.com/bag/")
                 link_checkout=driver.find_elements_by_partial_link_text("CHECKOUT")
@@ -557,6 +566,7 @@ def check_out_button(driver,button,data_store,logger):
                     randomlink_checkout.click() 
                     return 'Clicked',data_store
                 return 'None',data_store
+            """
         except Exception as err:
             print("error: ", err)
             print("error in clicking button..hence selecting other button")
@@ -646,9 +656,15 @@ def grp_elms(frmelms):
         for elm in frmelms:
             if elm.get_attribute("type") not in [ 'hidden','file']:
                 elm_type = elm.get_attribute('type')
-                if  elm_type is not None and elm_type in ["text","email", "radio", "password", "image", "img", "checkbox", "button", "submit", 'select', 'button', 'textarea' , "a"]:
+                if  elm_type is not None and elm_type in ["text","email", "radio", "password", "image", "img", "checkbox", "button", "submit", 'select', 'button', 'textarea']:
                     print(elm.get_attribute("outerHTML"))
                     interactive_elms.append(elm)
+            if elm.tag_name == 'select':
+                interactive_elms.append(elm)
+            if (elm_type == 'a' or elm.tag_name == 'a') and elm.get_attribute("onclick") is not None:
+                interactive_elms.append(elm)
+            if (elm_type == 'image' or elm_type == 'img') and elm.get_attribute("onclick") is not None:
+                interactive_elms.append(elm)
     except Exception as e:
         print('exception encountered ' + str(e))
     print('len of elms initial before buttons etc' + str(len(interactive_elms)))
@@ -702,12 +718,12 @@ def get_form_elms(driver, url,logger, elements):
                             if elm.get_attribute('id')!= None  and elm.get_attribute('id').lower() != 'addvgmblock' :
                                 print('id is not none and not an add block')
                                 val = elm.get_attribute('innerHTML')
-                                if elm.get_attribute('type')!= None and elm.get_attribute('type') == 'submit' :#or re.search('*add*',val) is None :
+                                if elm.get_attribute('type')!= None and (elm.get_attribute('type') == 'submit' or elm.get_attribute('type') == 'button') :#or re.search('*add*',val) is None :
                                     print('calling buttons') 
                                     status,data_store = check_out_button(driver,elm,data_store,logger)
                                     if status == 'Clicked':
                                         url_new = driver.current_url
-                                        pass
+                                        handleNewState(driver, url)
                                     elif status == 'None':
                                         url_new, data_store = submit_btns(driver, elm, data_store,logger)
         #                                 if status:
@@ -885,21 +901,29 @@ def handlesubmitform(driver, url):
     else:
         element_stack = True
         
-        
 
+def handleNewState(driver, old_url):
+    if driver.current_url != old_url:
+        urls.insert(urls.index(old_url) + 1, driver.current_url)
+        
+        
+    
+    
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from crawl_new_classifier.properties import DAProperties
 from crawl_new_classifier.logg import ManualLogger as m
 driver=webdriver.Chrome(executable_path=DAProperties.CHROME_DRIVER.value)
+div_elements_having_input_elements_xpath = set()
+div_elements_having_input_elements = set()
 urls=[
      'https://www.petstore.com/ps_homepage.aspx',
-     #'https://www.petstore.com/ps_login.html',
-     #'https://www.petstore.com/ps_homepage.aspx',
-     #'https://www.petstore.com/Dog_Beds-DGBD-ct.html',
-     #'https://www.petstore.com/Mid_West_Metal_Ombre_Swirl_Fur_Bed_Dog_Lounger_Cuddler_Beds-Midwest_Metal_Products_Co._(Midwest_Homes)-MS00978-DGBDLO-vi.html',
-     #'https://www.petstore.com/ps_checkout_addresses.html',
-     #'https://www.petstore.com/ps_checkout_payment.aspx'
+     'https://www.petstore.com/ps_login.html',
+     'https://www.petstore.com/ps_homepage.aspx',
+     'https://www.petstore.com/Dog_Beds-DGBD-ct.html',
+     'https://www.petstore.com/Mid_West_Metal_Ombre_Swirl_Fur_Bed_Dog_Lounger_Cuddler_Beds-Midwest_Metal_Products_Co._(Midwest_Homes)-MS00978-DGBDLO-vi.html',
+     'https://www.petstore.com/ps_checkout_addresses.html',
+     'https://www.petstore.com/ps_checkout_payment.aspx'
      ]
 try:
     for url in urls:
@@ -910,8 +934,7 @@ try:
         #Get all the input elements of webpage
         filtered_input_elements = [raw_input_element for raw_input_element in driver.find_elements_by_tag_name("input") if raw_input_element.get_attribute("type") not in [ 'hidden','file']]
 
-        div_elements_having_input_elements = set()
-        div_elements_having_input_elements_xpath = list()
+        
         try:
             for input_element in filtered_input_elements:
                 print("out Elements : ", input_element.get_attribute('outerHTML'))
@@ -924,14 +947,12 @@ try:
                 #Get all elements from parent element
                 all_elements_of_parent = parent_element.find_elements_by_tag_name("*")
                 
-                if parent_element.get_attribute('outerHTML') not in div_elements_having_input_elements:
+                if xpath not in div_elements_having_input_elements_xpath and str(parent_element.get_attribute('outerHTML')) not in div_elements_having_input_elements :
                     div_elements_having_input_element = parent_element.get_attribute('outerHTML')
                     div_elements_having_input_elements.add(div_elements_having_input_element)
+                    div_elements_having_input_elements_xpath.add(xpath)
                     status=get_form_elms(driver, url, logger, all_elements_of_parent)
                     print(status)
-                    
-                    if element_stack:
-                        break;
                     
             print("No.of Input Elements : ", len(div_elements_having_input_elements))
         except Exception as e:
