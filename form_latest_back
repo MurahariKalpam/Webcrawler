@@ -10,7 +10,7 @@ from selenium.webdriver.support.ui import Select
 from selenium.common.exceptions import StaleElementReferenceException
 
 from bs4 import BeautifulSoup
-#from crawl_new_classifier.Form_Interactive_Elems_Scrap import Xpath_Util as xpathscrap
+from crawl_new_classifier.Form_Interactive_Elems_Scrap import Xpath_Util as xpathscrap
 from difflib import get_close_matches 
 import traceback
 from selenium.webdriver.remote.webelement import WebElement
@@ -649,6 +649,7 @@ def get_input_order(driver, url):
     return input_tags_format, input_tags_html
 
 #===============================================================================
+elm_xpth = set()
 def grp_elms(frmelms):
     print('inside grp_elms')
     interactive_elms = list()
@@ -660,12 +661,14 @@ def grp_elms(frmelms):
                 if  elm_type is not None and elm_type in ["text","email", "radio", "password", "image", "img", "checkbox", "button", "submit", 'select', 'button', 'textarea']:
                     print(elm.get_attribute("outerHTML"))
                     interactive_elms.append(elm)
-            if elm.tag_name == 'select':
-                interactive_elms.append(elm)
-            if (elm_type == 'a' or elm.tag_name == 'a') and elm.get_attribute("onclick") is not None:
-                interactive_elms.append(elm)
-            if (elm_type == 'image' or elm_type == 'img') and elm.get_attribute("onclick") is not None:
-                interactive_elms.append(elm)
+                if elm.tag_name == 'select':
+                    interactive_elms.append(elm)
+                if (elm_type == 'a' or elm.tag_name == 'a') and elm.get_attribute("onclick") is not None:
+                    interactive_elms.append(elm)
+                if (elm_type == 'image' or elm_type == 'img') and elm.get_attribute("onclick") is not None:
+                    interactive_elms.append(elm)
+                
+                elm_xpth.add(get_locator(driver, elm))
     except Exception as e:
         print('exception encountered ' + str(e))
     print('len of elms initial before buttons etc' + str(len(interactive_elms)))
@@ -830,12 +833,6 @@ def get_form_elms(driver, url,logger, elements):
                                     od=OrderedDict(data_store)
                                     elm=od.popitem()
                                     return [driver.current_url, elm[1], elm[0], driver.title,len(err_list.values())]
-                                        
-                    else:
-                        print(2)
-                        print('element is not visible. Hence cannot perform an action. Hence increasing no visible counter')
-                        no_visible_counter +=1
-                        continue
                 except StaleElementReferenceException as se:
                     print('se1 inside a while loop')
                     print(se)
@@ -843,12 +840,7 @@ def get_form_elms(driver, url,logger, elements):
                 except Exception as e:
                     print('Exception occurred inside try within while loop as ' + e)
                     continue
-            
-#                 if driver.current_url == url:
-#                     print('link is within a form - hence continued')
-#                     continue
-#                 else:
-#                 logger.write_log_data('all the webelements are interacted. hence considered to be a new state : ',driver.current_url)
+    
             print('all the webelements are interacted. hence considered to be a new state : ',driver.current_url)
             logger.write_log_data(data_store)
             
@@ -908,34 +900,65 @@ def handleNewState(driver, old_url):
     if driver.current_url != old_url:
         urls.insert(urls.index(old_url) + 1, driver.current_url)
         
-        
-    
-    
+
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
+from crawl_new_classifier.properties import DAProperties
 from crawl_new_classifier.logg import ManualLogger as m
-driver=webdriver.Chrome(executable_path="F:\\MachineLearning\\share\\pythoncode\\Crawler\\chromedriver.exe")
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+driver=webdriver.Chrome(executable_path=DAProperties.CHROME_DRIVER.value)
 div_elements_having_input_elements_xpath = set()
 div_elements_having_input_elements = set()
+filtered_input_elements = None
+elements_xpath = set()
 urls=[
+     #'https://www.flipkart.com/account/login'
      'https://www.petstore.com/ps_homepage.aspx',
-     'https://www.petstore.com/ps_login.html',
-     'https://www.petstore.com/ps_homepage.aspx',
-     'https://www.petstore.com/Dog_Beds-DGBD-ct.html',
-     'https://www.petstore.com/Mid_West_Metal_Ombre_Swirl_Fur_Bed_Dog_Lounger_Cuddler_Beds-Midwest_Metal_Products_Co._(Midwest_Homes)-MS00978-DGBDLO-vi.html',
-     'https://www.petstore.com/ps_checkout_addresses.html',
-     'https://www.petstore.com/ps_checkout_payment.aspx'
+     #'https://www.petstore.com/ps_login.html',
+     #'https://www.petstore.com/Dog_Beds-DGBD-ct.html',
+     #'https://www.petstore.com/Dog_Beds-DGBD-ct.html',
+     #'https://www.petstore.com/Mid_West_Metal_Ombre_Swirl_Fur_Bed_Dog_Lounger_Cuddler_Beds-Midwest_Metal_Products_Co._(Midwest_Homes)-MS00978-DGBDLO-vi.html',
+     #'https://www.petstore.com/ps_checkout_addresses.html',
+     #'https://www.petstore.com/ps_checkout_payment.aspx'
      ]
 try:
     for url in urls:
         driver.get(url)
-        WebDriverWait(driver, 10)
+        WebDriverWait(driver, 15)
         logger = m(url, 999)
 
         #Get all the input elements of webpage
-        filtered_input_elements = [raw_input_element for raw_input_element in driver.find_elements_by_tag_name("input") if raw_input_element.get_attribute("type") not in [ 'hidden','file']]
+        filtered_input_elements = [raw_input_element for raw_input_element in driver.find_elements_by_tag_name("input") if raw_input_element.get_attribute("type") not in [ 'hidden','file'] and raw_input_element.is_displayed()]
 
+        filtered_select_elements = [raw_input_element for raw_input_element in driver.find_elements_by_tag_name("select") if raw_input_element.get_attribute("type") not in [ 'hidden','file'] and raw_input_element.is_displayed()]
         
+        filtered_button_elements = [raw_input_element for raw_input_element in driver.find_elements_by_tag_name("button") if raw_input_element.get_attribute("type") not in [ 'hidden','file'] and raw_input_element.is_displayed()]
+        
+        filtered_anchor_elements = [raw_input_element for raw_input_element in driver.find_elements_by_tag_name("a")  if raw_input_element.get_attribute("onclick") is not None and raw_input_element.is_displayed()] 
+        
+        filtered_img_elements = [raw_input_element for raw_input_element in driver.find_elements_by_tag_name("img") if raw_input_element.get_attribute("onclick") is not None and raw_input_element.get_attribute("type") not in [ 'hidden','file'] and raw_input_element.is_displayed()]
+        
+        missed_eles = set()            
+        for element in filtered_input_elements:
+            elements_xpath.add(get_locator(driver, element))
+            print(element.get_attribute("outerHTML"))
+        for element in filtered_select_elements:
+            elements_xpath.add(get_locator(driver, element))
+            print(element.get_attribute("outerHTML"))
+        for element in filtered_button_elements:
+            elements_xpath.add(get_locator(driver, element))
+            print(element.get_attribute("outerHTML"))
+        for element in filtered_anchor_elements:
+            elements_xpath.add(get_locator(driver, element))
+            print(element.get_attribute("outerHTML"))
+        for element in filtered_img_elements:
+            elements_xpath.add(get_locator(driver, element))
+            print(element.get_attribute("outerHTML"))
+            
+        print("Number of interactive elements found on this page",  url, "is :",  len(elements_xpath))
+
+
         try:
             for input_element in filtered_input_elements:
                 print("out Elements : ", input_element.get_attribute('outerHTML'))
@@ -944,7 +967,9 @@ try:
                 
                 parent_element = input_element.find_element_by_xpath('..') # get the parent element
                 print(parent_element.get_attribute('outerHTML'))
-                    
+                parent_xpath = get_locator(driver, parent_element)
+                print("parent Xpath :" , parent_xpath)
+                
                 #Get all elements from parent element
                 all_elements_of_parent = parent_element.find_elements_by_tag_name("*")
                 
@@ -956,13 +981,22 @@ try:
                             div_elements_having_input_elements_xpath.add(get_locator(driver, p_elms))
                         else:
                             all_elements_of_parent.remove(p_elms) 
-                        
-                    status=get_form_elms(driver, url, logger, all_elements_of_parent)
+                    status=get_form_elms(driver, url, logger, all_elements_of_parent)   
                     print(status)
+                
+                    for i in elements_xpath:
+                        if i in div_elements_having_input_elements:
+                            continue
+                        else:
+                            missed_eles.add(i)
+                    if(len(missed_eles) > 0):
+                        print("Not all the elements interacted")
                     
             print("No.of Input Elements : ", len(div_elements_having_input_elements))
+        
         except Exception as e:
             print(traceback.format_exc())
             continue
+
 except Exception as e:
     print(traceback.format_exc())
