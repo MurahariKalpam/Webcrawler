@@ -10,7 +10,7 @@ from selenium.webdriver.support.ui import Select
 from selenium.common.exceptions import StaleElementReferenceException
 
 from bs4 import BeautifulSoup
-from crawl_new_classifier.Form_Interactive_Elems_Scrap import Xpath_Util as xpathscrap
+#from crawl_new_classifier.Form_Interactive_Elems_Scrap import Xpath_Util as xpathscrap
 from difflib import get_close_matches 
 import traceback
 from selenium.webdriver.remote.webelement import WebElement
@@ -357,7 +357,7 @@ def find_elements(form_elm):
 
 
 #data_dict = {0: "infosys@gmail.com", 1: "Infy1234*", 2: "Infosys", 3:"Solution", 4: "7800 Smith Rd", 5: "Denver", 6: "CO - Colorado", 7: "80022", 8: "3035612794", 9: "567", 10: "Standard", 11: "5555555555554444" , 12: "Mastercard", 13: "xyz", 14: "07", 15: "21", 16: "656", 17: "01", 18:"01"} 
-data_dict = {0: "murahari2.kalpam@gmail.com", 1: "Srihari@2k", 2: "Infosys", 3:"Solution", 4: "7800 Smith Rd", 5: "Denver", 6: "CO - Colorado", 7: "80022", 8: "3035612795", 9: "1234567567", 10: "Standard", 11: "5555555555554444" , 12: "Mastercard", 13: "xyz", 14: "07", 15: "21", 16: "656", 17: "01", 18:"01", 19:"food", 20:"cpn123", 21:"gift123"}
+data_dict = {0: "infosys@gmail.com", 1: "Infy1234*", 2: "Infosys", 3:"Solution", 4: "7800 Smith Rd", 5: "Denver", 6: "CO - Colorado", 7: "80022", 8: "3035612795", 9: "1234567567", 10: "Standard", 11: "5555555555554444" , 12: "Mastercard", 13: "xyz", 14: "07", 15: "21", 16: "656", 17: "01", 18:"01", 19:"food", 20:"cpn123", 21:"gift123"}
 res = db_handler.get_data_for_test_field()
  
 infotype = list()
@@ -913,28 +913,29 @@ def handleNewState(driver, old_url):
     
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
-from crawl_new_classifier.properties import DAProperties
 from crawl_new_classifier.logg import ManualLogger as m
-driver=webdriver.Chrome(executable_path=DAProperties.CHROME_DRIVER.value)
+driver=webdriver.Chrome(executable_path="F:\\MachineLearning\\share\\pythoncode\\Crawler\\chromedriver.exe")
 div_elements_having_input_elements_xpath = set()
 div_elements_having_input_elements = set()
 urls=[
-     'https://www.flipkart.com/account/login'
-     #'https://www.petstore.com/ps_homepage.aspx',
-     #'https://www.petstore.com/ps_login.html',
-     #'https://www.petstore.com/Dog_Beds-DGBD-ct.html',
-     #'https://www.petstore.com/Mid_West_Metal_Ombre_Swirl_Fur_Bed_Dog_Lounger_Cuddler_Beds-Midwest_Metal_Products_Co._(Midwest_Homes)-MS00978-DGBDLO-vi.html',
-     #'https://www.petstore.com/ps_checkout_addresses.html',
-     #'https://www.petstore.com/ps_checkout_payment.aspx'
+     'https://www.petstore.com/ps_homepage.aspx',
+     'https://www.petstore.com/ps_login.html',
+     'https://www.petstore.com/ps_homepage.aspx',
+     'https://www.petstore.com/Dog_Beds-DGBD-ct.html',
+     'https://www.petstore.com/Mid_West_Metal_Ombre_Swirl_Fur_Bed_Dog_Lounger_Cuddler_Beds-Midwest_Metal_Products_Co._(Midwest_Homes)-MS00978-DGBDLO-vi.html',
+     'https://www.petstore.com/ps_checkout_addresses.html',
+     'https://www.petstore.com/ps_checkout_payment.aspx'
      ]
 try:
     for url in urls:
         driver.get(url)
-        WebDriverWait(driver, 15)
+        WebDriverWait(driver, 10)
         logger = m(url, 999)
 
         #Get all the input elements of webpage
-        filtered_input_elements = [raw_input_element for raw_input_element in driver.find_elements_by_tag_name("input") if raw_input_element.get_attribute("type") not in [ 'hidden','file'] and raw_input_element.is_displayed()]
+        filtered_input_elements = [raw_input_element for raw_input_element in driver.find_elements_by_tag_name("input") if raw_input_element.get_attribute("type") not in [ 'hidden','file']]
+
+        
         try:
             for input_element in filtered_input_elements:
                 print("out Elements : ", input_element.get_attribute('outerHTML'))
@@ -943,17 +944,19 @@ try:
                 
                 parent_element = input_element.find_element_by_xpath('..') # get the parent element
                 print(parent_element.get_attribute('outerHTML'))
-                parent_xpath = get_locator(driver, parent_element)
-                print("parent Xpath :" , parent_xpath)
-                
+                    
                 #Get all elements from parent element
                 all_elements_of_parent = parent_element.find_elements_by_tag_name("*")
                 
-                if xpath not in div_elements_having_input_elements_xpath and str(parent_element.get_attribute('outerHTML')) not in div_elements_having_input_elements :
+                if xpath not in div_elements_having_input_elements_xpath:
                     div_elements_having_input_element = parent_element.get_attribute('outerHTML')
                     div_elements_having_input_elements.add(div_elements_having_input_element)
                     for p_elms in all_elements_of_parent:
-                        div_elements_having_input_elements_xpath.add(get_locator(driver, p_elms))
+                        if get_locator(driver, p_elms) not in div_elements_having_input_elements_xpath:
+                            div_elements_having_input_elements_xpath.add(get_locator(driver, p_elms))
+                        else:
+                            all_elements_of_parent.remove(p_elms) 
+                        
                     status=get_form_elms(driver, url, logger, all_elements_of_parent)
                     print(status)
                     
