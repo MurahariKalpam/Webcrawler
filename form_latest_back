@@ -899,7 +899,49 @@ def handlesubmitform(driver, url):
 def handleNewState(driver, old_url):
     if driver.current_url != old_url:
         urls.insert(urls.index(old_url) + 1, driver.current_url)
-        
+
+
+def group_interactive_elems(driver, interactive_elms):
+    grop_dict = dict()
+    groups_elm_lst = list()
+    group_elms = list()
+    group_elms_xpath = list()
+    groupNo = 0
+    for elm in interactive_elms:
+        if elm.get_attribute('type') not in ['hidden', 'file']:
+            if elm.is_displayed():
+                if elm.tag_name == 'input' and elm.get_attribute('type') != 'button'  and elm.get_attribute("type") != 'submit':
+                    group_elms.append(elm.get_attribute("outerHTML"))
+                    group_elms_xpath.append(get_locator(driver, elm))
+                elif elm.tag_name == 'select':
+                    group_elms.append(elm.get_attribute("outerHTML"))
+                    group_elms_xpath.append(get_locator(driver, elm))
+                elif elm.tag_name == 'a' and elm.get_attribute("onclick") is not None:
+                    group_elms.append(elm.get_attribute("outerHTML"))
+                    group_elms_xpath.append(get_locator(driver, elm))
+                    groupNo = groupNo + 1
+                    grop_dict[groupNo] = group_elms
+                    groups = list()
+                elif elm.tag_name == 'button' or elm.get_attribute('type') == 'button'  or elm.get_attribute("type") == 'submit':
+                    group_elms.append(elm.get_attribute("outerHTML"))
+                    group_elms_xpath.append(get_locator(driver, elm))
+                    groupNo = groupNo + 1
+                    grop_dict[groupNo] = group_elms
+                    groups = list()
+    list_attrs = [[driver.current_url, elm_xpath, i.tag_name, atrs1, None]]                
+
+
+def export_grouping_to_file():
+    try:
+        df = pd.DataFrame.from_dict(dataframe, orient='index').reset_index()
+        df.rename(columns={'index': cols[0], 0: cols[1]}, inplace=True)
+        flatternurl = ''.join(i for i in url if i.isalnum())
+        url_path_ = DAProperties.INPUT_ELEMENTS_FILE_DIRECTORY.value + flatternurl + '-CLASSIFICATION' + '.xlsx'
+        writer = pd.ExcelWriter(url_path_, engine='xlsxwriter', options={'strings_to_urls': False})
+        df.to_excel(writer)
+        writer.close()
+    except Exception as ex:
+        print(ex) 
 
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
@@ -927,76 +969,103 @@ try:
         driver.get(url)
         WebDriverWait(driver, 15)
         logger = m(url, 999)
+        bodyelm= driver.find_element_by_tag_name('body')
+        child_elms= bodyelm.find_elements_by_xpath('.//*')
+        include_tags = ['input','select','button','textarea']
+        interactive_elms = list()
+        child_count = len(child_elms)
+        print(child_count)
+        for i in child_elms:
+            if i.tag_name in include_tags:
+                interactive_elms.append(i)
+                print(i.tag_name,i.get_attribute('outerHTML'))
+            elif i.tag_name == 'a' and i.get_attribute("onclick") is not None:
+                interactive_elms.append(i)
+                print(i.tag_name,i.get_attribute('outerHTML'))
+        print('=======')
+        print(len(interactive_elms))
+        
+        group_interactive_elems(driver, interactive_elms)
+        #print(grop_dict)
+        
+except Exception as e:
+    print(traceback.format_exc(), e)
+
+
+                
+                    
 
         #Get all the input elements of webpage
-        filtered_input_elements = [raw_input_element for raw_input_element in driver.find_elements_by_tag_name("input") if raw_input_element.get_attribute("type") not in [ 'hidden','file'] and raw_input_element.is_displayed()]
-
-        filtered_select_elements = [raw_input_element for raw_input_element in driver.find_elements_by_tag_name("select") if raw_input_element.get_attribute("type") not in [ 'hidden','file'] and raw_input_element.is_displayed()]
-        
-        filtered_button_elements = [raw_input_element for raw_input_element in driver.find_elements_by_tag_name("button") if raw_input_element.get_attribute("type") not in [ 'hidden','file'] and raw_input_element.is_displayed()]
-        
-        filtered_anchor_elements = [raw_input_element for raw_input_element in driver.find_elements_by_tag_name("a")  if raw_input_element.get_attribute("onclick") is not None and raw_input_element.is_displayed()] 
-        
-        filtered_img_elements = [raw_input_element for raw_input_element in driver.find_elements_by_tag_name("img") if raw_input_element.get_attribute("onclick") is not None and raw_input_element.get_attribute("type") not in [ 'hidden','file'] and raw_input_element.is_displayed()]
-        
-        missed_eles = set()            
-        for element in filtered_input_elements:
-            elements_xpath.add(get_locator(driver, element))
-            print(element.get_attribute("outerHTML"))
-        for element in filtered_select_elements:
-            elements_xpath.add(get_locator(driver, element))
-            print(element.get_attribute("outerHTML"))
-        for element in filtered_button_elements:
-            elements_xpath.add(get_locator(driver, element))
-            print(element.get_attribute("outerHTML"))
-        for element in filtered_anchor_elements:
-            elements_xpath.add(get_locator(driver, element))
-            print(element.get_attribute("outerHTML"))
-        for element in filtered_img_elements:
-            elements_xpath.add(get_locator(driver, element))
-            print(element.get_attribute("outerHTML"))
-            
-        print("Number of interactive elements found on this page",  url, "is :",  len(elements_xpath))
-
-
-        try:
-            for input_element in filtered_input_elements:
-                print("out Elements : ", input_element.get_attribute('outerHTML'))
-                xpath = get_locator(driver, input_element)
-                print("xpath :" , xpath)
-                
-                parent_element = input_element.find_element_by_xpath('..') # get the parent element
-                print(parent_element.get_attribute('outerHTML'))
-                parent_xpath = get_locator(driver, parent_element)
-                print("parent Xpath :" , parent_xpath)
-                
-                #Get all elements from parent element
-                all_elements_of_parent = parent_element.find_elements_by_tag_name("*")
-                
-                if xpath not in div_elements_having_input_elements_xpath:
-                    div_elements_having_input_element = parent_element.get_attribute('outerHTML')
-                    div_elements_having_input_elements.add(div_elements_having_input_element)
-                    for p_elms in all_elements_of_parent:
-                        if get_locator(driver, p_elms) not in div_elements_having_input_elements_xpath:
-                            div_elements_having_input_elements_xpath.add(get_locator(driver, p_elms))
-                        else:
-                            all_elements_of_parent.remove(p_elms) 
-                    status=get_form_elms(driver, url, logger, all_elements_of_parent)   
-                    print(status)
-                
-                    for i in elements_xpath:
-                        if i in div_elements_having_input_elements:
-                            continue
-                        else:
-                            missed_eles.add(i)
-                    if(len(missed_eles) > 0):
-                        print("Not all the elements interacted")
-                    
-            print("No.of Input Elements : ", len(div_elements_having_input_elements))
-        
-        except Exception as e:
-            print(traceback.format_exc())
-            continue
-
-except Exception as e:
-    print(traceback.format_exc())
+#===============================================================================
+#         filtered_input_elements = [raw_input_element for raw_input_element in driver.find_elements_by_tag_name("*") if raw_input_element.get_attribute("type") not in [ 'hidden','file'] and raw_input_element.is_displayed()]
+# 
+#         filtered_select_elements = [raw_input_element for raw_input_element in driver.find_elements_by_tag_name("select") if raw_input_element.get_attribute("type") not in [ 'hidden','file'] and raw_input_element.is_displayed()]
+#         
+#         filtered_button_elements = [raw_input_element for raw_input_element in driver.find_elements_by_tag_name("button") if raw_input_element.get_attribute("type") not in [ 'hidden','file'] and raw_input_element.is_displayed()]
+#         
+#         filtered_anchor_elements = [raw_input_element for raw_input_element in driver.find_elements_by_tag_name("a")  if raw_input_element.get_attribute("onclick") is not None and raw_input_element.is_displayed()] 
+#         
+#         filtered_img_elements = [raw_input_element for raw_input_element in driver.find_elements_by_tag_name("img") if raw_input_element.get_attribute("onclick") is not None and raw_input_element.get_attribute("type") not in [ 'hidden','file'] and raw_input_element.is_displayed()]
+#         
+#         missed_eles = set()            
+#         for element in filtered_input_elements:
+#             elements_xpath.add(get_locator(driver, element))
+#             print(element.get_attribute("outerHTML"))
+#         for element in filtered_select_elements:
+#             elements_xpath.add(get_locator(driver, element))
+#             print(element.get_attribute("outerHTML"))
+#         for element in filtered_button_elements:
+#             elements_xpath.add(get_locator(driver, element))
+#             print(element.get_attribute("outerHTML"))
+#         for element in filtered_anchor_elements:
+#             elements_xpath.add(get_locator(driver, element))
+#             print(element.get_attribute("outerHTML"))
+#         for element in filtered_img_elements:
+#             elements_xpath.add(get_locator(driver, element))
+#             print(element.get_attribute("outerHTML"))
+#             
+#         print("Number of interactive elements found on this page",  url, "is :",  len(elements_xpath))
+# 
+# 
+#         try:
+#             for input_element in filtered_input_elements:
+#                 print("out Elements : ", input_element.get_attribute('outerHTML'))
+#                 xpath = get_locator(driver, input_element)
+#                 print("xpath :" , xpath)
+#                 
+#                 parent_element = input_element.find_element_by_xpath('..') # get the parent element
+#                 print(parent_element.get_attribute('outerHTML'))
+#                 parent_xpath = get_locator(driver, parent_element)
+#                 print("parent Xpath :" , parent_xpath)
+#                 
+#                 #Get all elements from parent element
+#                 all_elements_of_parent = parent_element.find_elements_by_tag_name("*")
+#                 
+#                 if xpath not in div_elements_having_input_elements_xpath:
+#                     div_elements_having_input_element = parent_element.get_attribute('outerHTML')
+#                     div_elements_having_input_elements.add(div_elements_having_input_element)
+#                     for p_elms in all_elements_of_parent:
+#                         if get_locator(driver, p_elms) not in div_elements_having_input_elements_xpath:
+#                             div_elements_having_input_elements_xpath.add(get_locator(driver, p_elms))
+#                         else:
+#                             all_elements_of_parent.remove(p_elms) 
+#                     status=get_form_elms(driver, url, logger, all_elements_of_parent)   
+#                     print(status)
+#                 
+#                     for i in elements_xpath:
+#                         if i in div_elements_having_input_elements:
+#                             continue
+#                         else:
+#                             missed_eles.add(i)
+#                     if(len(missed_eles) > 0):
+#                         print("Not all the elements interacted")
+#                     
+#             print("No.of Input Elements : ", len(div_elements_having_input_elements))
+#         
+#         except Exception as e:
+#             print(traceback.format_exc())
+#             continue
+# 
+# except Exception as e:
+#     print(traceback.format_exc())
+#===============================================================================
