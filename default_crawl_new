@@ -4,11 +4,12 @@ from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import StaleElementReferenceException
 
-import forms_latest as scraping
-from logg import ManualLogger
-from predictor import Predictor
-from properties import DAProperties
-import py_m_connect as db_handler
+from crawl_new_classifier import forms_latest as scraping
+from crawl_new_classifier.logg import ManualLogger
+from crawl_new_classifier.predictor import Predictor
+from crawl_new_classifier.properties import DAProperties
+from crawl_new_classifier import py_m_connect as db_handler
+import crawl_new_classifier.interactive_elements_grouping as grouping 
 
 from keras import models as model
 
@@ -98,6 +99,7 @@ def scraper_(id_, base_url_, smodel, tgraph, logger):
                             # Scrap input elements    
                             if str(driver.current_url).startswith(BASE_URL_): # To make sure we are in current website
                                 scrap_input_elements(url_, driver, logger)
+                                grouping.main(driver)
                             
                             # From all the retrieved href links from the current webpage check whether urls are already scraped (by checking whether flatten of url exist) and add it to the queue if not.
                             for new_url_ in links_in_page:  # get links
