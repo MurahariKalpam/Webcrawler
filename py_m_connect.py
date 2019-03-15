@@ -248,4 +248,12 @@ def make_db_connection():
         return conn
     except Exception as ex:
         print(ex)
-        
+"""        
+CREATE TABLE idas.webpage_classification
+(
+   testId INT NOT NULL,
+   pageUrl TEXT,
+   pageClassification VARCHAR(50),
+   pageImage LONGBLOB
+);
+"""
