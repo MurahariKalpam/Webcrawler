@@ -1,3 +1,8 @@
+'''
+Created on Apr 23, 2018
+
+@author: sachin.nandakumar
+'''
 from crawl_new_classifier.python_mysql_connection import read_db_config
 import MySQLdb, datetime
  
@@ -69,7 +74,13 @@ def get_data_for_test_field():
         row19 = cur1.fetchall()
         cur1.execute('SELECT bday_day FROM attributes')
         row20 = cur1.fetchall()
-        return [row1, row2, row3, row4, row5, row6, row7, row8, row9, row10, row11, row12, row13, row14, row15, row16, row17, row18, row19, row20]
+        cur1.execute('SELECT search FROM attributes')
+        row21 = cur1.fetchall()
+        cur1.execute('SELECT coupons FROM attributes')
+        row22 = cur1.fetchall()
+        cur1.execute('SELECT giftcertificate FROM attributes')
+        row23 = cur1.fetchall()
+        return [row1, row2, row3, row4, row5, row6, row7, row8, row9, row10, row11, row12, row13, row14, row15, row16, row17, row18, row19, row20, row21, row22, row23]
     finally:
         conn.close()
         print('Connection closed.')        
@@ -211,3 +222,30 @@ def delete_data(testId):
     finally:
         conn.close()
         print('Connection closed.')
+
+def insert_webpage_classification(testId, url, categeory, image, conn):
+    """ Connect to MySQL database """
+    try:
+        conn.set_character_set('utf8')
+        cur = conn.cursor()
+        cur.execute('SET NAMES utf8;')
+        cur.execute('SET CHARACTER SET utf8;')
+        cur.execute('SET character_set_connection=utf8;')
+        cur.execute ("""INSERT INTO webpage_classification VALUES (%s, %s, %s, %s)""",(testId, url, str(categeory), image))
+        conn.commit()
+        print('committed')
+    except Exception as ex:
+        print(ex)
+
+
+def make_db_connection():
+    global conn
+    db_config = read_db_config()
+    try:
+        print('Connecting to MySQL database...')
+        conn = MySQLdb.connect(**db_config)
+        conn.set_character_set('utf8')
+        return conn
+    except Exception as ex:
+        print(ex)
+        
