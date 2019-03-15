@@ -1,0 +1,88 @@
+'''
+Created on Mar 1, 2019
+
+@author: Murahari_Kalpam
+'''
+from crawl_new_classifier.properties import DAProperties
+from crawl_new_classifier.logg import ManualLogger as m
+import pandas as pd
+import crawl_new_classifier.forms_latest as forms_latest
+import traceback
+
+def group_interactive_elems(driver, interactive_elms):
+    grop_dict = dict()
+    group_elms = list()
+    group_elms_xpath = list()
+    group_attr = list()
+    groupNo = 0
+    for elm in interactive_elms:
+        if elm.get_attribute('type') not in ['hidden', 'file']:
+            if elm.is_displayed():
+                outerHtml = elm.get_attribute("outerHTML")
+                if elm.tag_name == 'input' and elm.get_attribute('type') != 'button'  and elm.get_attribute("type") != 'submit':
+                    group_elms.append(outerHtml)
+                    group_elms_xpath.append(forms_latest.get_locator(driver, elm))
+                    group_attr.append(str(outerHtml)[str(outerHtml).find('[') : str(outerHtml).find(']') + 1])
+                elif elm.tag_name == 'select':
+                    group_elms.append(outerHtml)
+                    group_elms_xpath.append(forms_latest.get_locator(driver, elm))
+                    group_attr.append(str(outerHtml)[str(outerHtml).find('[') : str(outerHtml).find(']') + 1])
+                elif elm.tag_name == 'a' and elm.get_attribute("onclick") is not None:
+                    group_elms.append(outerHtml)
+                    group_elms_xpath.append(forms_latest.get_locator(driver, elm))
+                    group_attr.append(str(outerHtml)[str(outerHtml).find('[') : str(outerHtml).find(']') + 1])
+                    groupNo = groupNo + 1
+                    grop_dict[groupNo] = [driver.current_url, group_elms, group_elms_xpath, group_attr]
+                    group_elms = list()
+                    group_elms_xpath = list()
+                elif elm.tag_name == 'button' or elm.get_attribute('type') == 'button'  or elm.get_attribute("type") == 'submit':
+                    group_elms.append(outerHtml)
+                    group_elms_xpath.append(forms_latest.get_locator(driver, elm))
+                    group_attr.append(str(outerHtml)[str(outerHtml).find('[') : str(outerHtml).find(']') + 1])
+                    groupNo = groupNo + 1
+                    grop_dict[groupNo] = [driver.current_url, group_elms, group_elms_xpath, group_attr]
+                    group_elms = list()
+                    group_elms_xpath = list()             
+    return grop_dict
+
+
+def export_grouping_to_file(df, driver):
+    try:
+        cols = ['Group', 'url', 'Elements', 'Xpath', "Attribute"]
+        url = driver.current_url
+        #df = pd.DataFrame.from_dict(dataframe, orient='index').reset_index()
+        df.rename(columns={'index': cols[0], 0: cols[1], 1: cols[2], 2: cols[3], 3: cols[4]}, inplace=True)
+        flatternurl = ''.join(i for i in url if i.isalnum())
+        url_path_ = DAProperties.INPUT_ELEMENTS_FILE_DIRECTORY.value + flatternurl + '-GROUPING_ELEMENTS' + '.xlsx'
+        writer = pd.ExcelWriter(url_path_, engine='xlsxwriter', options={'strings_to_urls': False})
+        df.to_excel(writer)
+        writer.close()
+    except Exception as ex:
+        print(ex)
+
+def grouping_main(driver):
+    grouping_df = pd.DataFrame()
+    try:
+        logger = m(driver.current_url, 999)
+        print("In Grouping..")
+        logger.write_log_data("Grouping")
+        logger.write_log_data(driver.current_url)
+        bodyelm= driver.find_element_by_tag_name('body')
+        child_elms= bodyelm.find_elements_by_xpath('.//*')
+        include_tags = ['input','select','button','textarea']
+        interactive_elms = list()
+        for i in child_elms:
+            if i.tag_name in include_tags:
+                interactive_elms.append(i)
+                print(i.tag_name,i.get_attribute('outerHTML'))
+            elif i.tag_name == 'a' and i.get_attribute("onclick") is not None:
+                interactive_elms.append(i)
+                print(i.tag_name,i.get_attribute('outerHTML'))
+        print('=======')
+        print(len(interactive_elms))
+        
+        grouping_dict = group_interactive_elems(driver, interactive_elms)
+        return grouping_dict
+    except Exception as e:
+        print(traceback.format_exc(), e)
+
