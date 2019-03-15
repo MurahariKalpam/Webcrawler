@@ -4,16 +4,17 @@ from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import StaleElementReferenceException
 
-from crawl_new_classifier import forms_latest as scraping
+import crawl_new_classifier.forms_latest as scraping
 from crawl_new_classifier.logg import ManualLogger
 from crawl_new_classifier.predictor import Predictor
 from crawl_new_classifier.properties import DAProperties
-from crawl_new_classifier import py_m_connect as db_handler
-import crawl_new_classifier.interactive_elements_grouping as grouping 
+from crawl_new_classifier import interactive_elements_grouping as grouping
+from crawl_new_classifier import py_m_connect
 
 from keras import models as model
 
-def scraper_(id_, base_url_, smodel, tgraph, logger):
+
+def scraper_(id_, base_url_, smodel, tgraph, logger, db):
     # To flatten the url to filter out the special chars
     def flatten_(url_):
         return "".join(x for x in url_ if x.isalnum()) + ".txt"
@@ -69,8 +70,8 @@ def scraper_(id_, base_url_, smodel, tgraph, logger):
 #                             if str(driver.current_url).startswith(BASE_URL_): 
                             if curr_domain == WEB_DOMAIN: 
                                 classify = Predictor(driver, smodel, tgraph)
-                                classifier(url_, classify)
-                            
+                                classifier(url_, classify, driver, db)
+                                
                             #Get the all href links from the current webpage                
                             links_partial = driver.find_elements_by_partial_link_text('')
                             if links_partial:
@@ -99,7 +100,8 @@ def scraper_(id_, base_url_, smodel, tgraph, logger):
                             # Scrap input elements    
                             if str(driver.current_url).startswith(BASE_URL_): # To make sure we are in current website
                                 scrap_input_elements(url_, driver, logger)
-                                grouping.main(driver)
+                                group_interactive_elms(driver)
+                                
                             
                             # From all the retrieved href links from the current webpage check whether urls are already scraped (by checking whether flatten of url exist) and add it to the queue if not.
                             for new_url_ in links_in_page:  # get links
@@ -278,6 +280,26 @@ def load_saved_model():
     except Exception as ex:
         print("Error in loading the model in playground.load_saved_model :", ex)
 
+def db_connection():
+    """
+    Method to load the existing model.
+    Below are being used to handle the loaded model by multiple threads. Otherwise it gives the issue while predicting. 
+    _make_predict_function
+    get_default_graph
+    
+    """
+    try:
+        db = [py_m_connect.make_db_connection() for _ in range(NUM_SCRAPERS_)]
+        log_thread = list()
+        urldata = ''.join(e for e in BASE_URL_ if e.isalnum())
+        for scrap in range(NUM_SCRAPERS_):
+            url = urldata + str(scrap)
+            lobj = ManualLogger(url , 999)
+            log_thread.append(lobj) #add trial number here
+        return db
+    except Exception as ex:
+        print("Error in loading the model in playground.load_saved_model :", ex)
+
 def dataframe_to_excel(dataframe, cols, url):
     """
     Method to write dataframe into excell
@@ -286,7 +308,7 @@ def dataframe_to_excel(dataframe, cols, url):
         for i in dataframe:
             dataframe[i] = str(dataframe[i])
         df = pd.DataFrame.from_dict(dataframe, orient='index').reset_index()
-        df.rename(columns={'index': cols[0], 0: cols[1]}, inplace=True)
+        df.rename(columns={'index': cols[0], 0: cols[1], 1: cols[2]}, inplace=True)
         flatternurl = ''.join(i for i in url if i.isalnum())
         url_path_ = DAProperties.INPUT_ELEMENTS_FILE_DIRECTORY.value + flatternurl + '-CLASSIFICATION' + '.xlsx'
         writer = pd.ExcelWriter(url_path_, engine='xlsxwriter', options={'strings_to_urls': False})
@@ -299,7 +321,7 @@ def remove_duplicates(data_frame):
     return data_frame.drop_duplicates(keep="first", inplace=True)
 
 
-def classifier(url_, classify):
+def classifier(url_, classify, driver, db):
     """
     Method to call the Predictor.classifier to predict the categeory of given webpage 
     """
@@ -307,6 +329,8 @@ def classifier(url_, classify):
         url_classification = classify.classifier()
         print(url_, ':', url_classification)
         classified_URLs[url_] = url_classification
+        print("classification frame :", classified_URLs)
+        py_m_connect.insert_webpage_classification(TEST_Id, url_, url_classification, driver.get_screenshot_as_png(), db)
     else:
         print('URL already classified')
 
@@ -449,8 +473,28 @@ def createDirectoryWithURL():
         os.chdir(dirpath)
     except Exception as ex:
         print("Error in creating and setting current directory in playground.createDirectoryWithURL", ex)
+        
+def group_interactive_elms(driver):
+    global GROUPING_ELMS
+    grouped_elements = grouping.grouping_main(driver)
+    df = pd.DataFrame.from_dict(grouped_elements, orient='index').reset_index()
+    GROUPING_ELMS = GROUPING_ELMS.append(df, ignore_index=True)
 
-def init(base_url, no_of_scrapers):
+def export_grouping_to_file(df, url):
+    try:
+        cols = ['Group', 'url', 'Elements', 'Xpath', "Attribute"]
+        #url = driver.current_url
+        #df = pd.DataFrame.from_dict(dataframe, orient='index').reset_index()
+        df.rename(columns={'index': cols[0], 0: cols[1], 1: cols[2], 2: cols[3], 3: cols[4]}, inplace=True)
+        flatternurl = ''.join(i for i in url if i.isalnum())
+        url_path_ = DAProperties.INPUT_ELEMENTS_FILE_DIRECTORY.value + flatternurl + '-GROUPING_ELEMENTS' + '.xlsx'
+        writer = pd.ExcelWriter(url_path_, engine='xlsxwriter', options={'strings_to_urls': False})
+        df.to_excel(writer)
+        writer.close()
+    except Exception as ex:
+        print(ex)
+    
+def init(base_url, no_of_scrapers, testId):
     """
     Method to initialize variables and to make them global to make sure the values exist throught. 
     """
@@ -467,8 +511,12 @@ def init(base_url, no_of_scrapers):
     global PAGE_DATAFRAME_
     global URL_TRACKER
     global REPEATED_PAGES_
+    global GROUPING_ELMS
+    global CLASSIFICATION
+    global TEST_Id
     SCRAP_DATA_FRAME = pd.DataFrame()
     PAGE_DATAFRAME_ = pd.DataFrame()
+    GROUPING_ELMS = pd.DataFrame()
     urls_yet_to_be_scraped_ = queue.Queue()
     urls_already_scraped_ = queue.Queue()
     running_scrapers_ = queue.Queue()
@@ -480,29 +528,35 @@ def init(base_url, no_of_scrapers):
     createDirectoryWithURL()
     URL_TRACKER = list()
     REPEATED_PAGES_ = list()
+    CLASSIFICATION = pd.DataFrame()
+    TEST_Id = testId
     
-def main(base_url, no_of_scrapers = DAProperties.DEFAULT_NO_OF_THREADS_FOR_CRAWLING.value):
+def main(base_url, testId, no_of_scrapers = DAProperties.DEFAULT_NO_OF_THREADS_FOR_CRAWLING.value):
     """
     This is the main method which needs to be called to start web crawling.
     
     parameters : 1. base url of the website which needs to be crawled.
                  2 (optional). Number of threads to do the crawling asynchronously
     """
-    
-     
-    init(base_url , no_of_scrapers)
+    init(base_url , no_of_scrapers, testId)
     start_time_ = time.time()
     with ThreadPoolExecutor() as executor_:
         scraper_ids_ = [_ for _ in range(NUM_SCRAPERS_)]
         scraper_base_urls_ = [BASE_URL_ for _ in range(NUM_SCRAPERS_)]
         tgraph, smodel, logger = load_saved_model()
-        for scraper_index_, scraper_final_status_ in zip(scraper_ids_, executor_.map(scraper_, scraper_ids_, scraper_base_urls_, smodel, tgraph, logger)):
+        db = db_connection()
+        for scraper_index_, scraper_final_status_ in zip(scraper_ids_, executor_.map(scraper_, scraper_ids_, scraper_base_urls_, smodel, tgraph, logger, db)):
             print('scraper_index_: ', scraper_index_)
             print('scraper_final_status_: ', scraper_final_status_)
     write_to_prop_file(SCRAP_DATA_FRAME, BASE_URL_, True)
-    dataframe_to_excel(classified_URLs, ["WebpageURL", "Categeory"], BASE_URL_)
+    export_grouping_to_file(GROUPING_ELMS, BASE_URL_)
+    dataframe_to_excel(classified_URLs, ["WebpageURL", "Categeory", "Webpage_Image"], BASE_URL_)
+    for i in db:
+        i.close()
+    
     logger[0].write_log_data(str(REPEATED_PAGES_))
     end_time_ = time.time()
     print("{} seconds consumed for {} titles using recursive-multithreaded access".format(end_time_ - start_time_, urls_already_scraped_.qsize()))
+    
 
-######################force signin##########
+main("https://www.petstore.com/", 666666, 4)
