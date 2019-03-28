@@ -3,16 +3,17 @@ import queue, time, glob, os, pandas as pd, tensorflow as tf, re, tldextract
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import StaleElementReferenceException
-
+import traceback
 import crawl_new_classifier.forms_latest as scraping
 from crawl_new_classifier.logg import ManualLogger
 from crawl_new_classifier.predictor import Predictor
 from crawl_new_classifier.properties import DAProperties
-from crawl_new_classifier import interactive_elements_grouping as grouping
+#from crawl_new_classifier import interactive_elements_grouping as grouping
 from crawl_new_classifier import py_m_connect
-
+import crawl_new_classifier.forms_latest as forms_latest
 from keras import models as model
-
+from crawl_new_classifier.logg import ManualLogger as m
+from unittest.mock import inplace
 
 def scraper_(id_, base_url_, smodel, tgraph, logger, db):
     # To flatten the url to filter out the special chars
@@ -100,7 +101,7 @@ def scraper_(id_, base_url_, smodel, tgraph, logger, db):
                             # Scrap input elements    
                             if str(driver.current_url).startswith(BASE_URL_): # To make sure we are in current website
                                 scrap_input_elements(url_, driver, logger)
-                                group_interactive_elms(driver)
+                                group_interactive_elms(driver, url_, db)
                                 
                             
                             # From all the retrieved href links from the current webpage check whether urls are already scraped (by checking whether flatten of url exist) and add it to the queue if not.
@@ -329,7 +330,7 @@ def classifier(url_, classify, driver, db):
         url_classification = classify.classifier()
         print(url_, ':', url_classification)
         classified_URLs[url_] = url_classification
-        print("classification frame :", classified_URLs)
+        #print("classification frame :", classified_URLs)
         py_m_connect.insert_webpage_classification(TEST_Id, url_, url_classification, driver.get_screenshot_as_png(), db)
     else:
         print('URL already classified')
@@ -473,12 +474,30 @@ def createDirectoryWithURL():
         os.chdir(dirpath)
     except Exception as ex:
         print("Error in creating and setting current directory in playground.createDirectoryWithURL", ex)
-        
-def group_interactive_elms(driver):
+from sqlalchemy import create_engine     
+def group_interactive_elms(driver, url, dbconn):
     global GROUPING_ELMS
-    grouped_elements = grouping.grouping_main(driver)
+    grouped_elements = grouping_main(driver, url)
     df = pd.DataFrame.from_dict(grouped_elements, orient='index').reset_index()
-    GROUPING_ELMS = GROUPING_ELMS.append(df, ignore_index=True)
+    print(df)
+    
+    cols = ['group_no', 'pageUrl', 'elements', 'xpaths', "element_attributes"]
+    df.rename(columns={'index': cols[0], 0: cols[1], 1: cols[2], 2: cols[3], 3: cols[4]}, inplace=True)
+    
+    df['elements'] = str(df['elements'])
+    df['xpaths'] = str(df['xpaths'])
+    df['element_attribute'] = str(df['element_attributes'])
+    
+       
+    df.insert(0, 'testId', TEST_Id)
+    df["pageImage"] = driver.get_screenshot_as_png()
+    df.set_index('testId', inplace=True)
+    engine = create_engine("mysql://root:root@localhost/idas")
+    con = engine.connect()
+    df.to_sql(con=con, name='webpage_grouping_elements', if_exists='append')
+    #py_m_connect.insert_webpage_classification(TEST_Id, url_, url_classification, driver.get_screenshot_as_png(), db)
+    
+    #py_m_connect.insert_elements_grouping(TEST_Id, url_, url_classification, driver.get_screenshot_as_png(), db)
 
 def export_grouping_to_file(df, url):
     try:
@@ -557,6 +576,96 @@ def main(base_url, testId, no_of_scrapers = DAProperties.DEFAULT_NO_OF_THREADS_F
     logger[0].write_log_data(str(REPEATED_PAGES_))
     end_time_ = time.time()
     print("{} seconds consumed for {} titles using recursive-multithreaded access".format(end_time_ - start_time_, urls_already_scraped_.qsize()))
+
+def group_interactive_elems(driver, interactive_elms):
+    grop_dict = dict()
+    group_elms = list()
+    group_elms_xpath = list()
+    group_attr = list()
+    groupNo = 0
+    for elm in interactive_elms:
+        if elm.get_attribute('type') not in ['hidden', 'file']:
+            if elm.is_displayed():
+                outerHtml = elm.get_attribute("outerHTML")
+                if elm.tag_name == 'input' and elm.get_attribute('type') != 'button'  and elm.get_attribute("type") != 'submit':
+                    group_elms.append(outerHtml)
+                    group_elms_xpath.append(forms_latest.get_locator(driver, elm))
+                    #group_attr.append(str(outerHtml)[str(outerHtml).find('[') : str(outerHtml).find(']') + 1])
+                    group_attr.append("abc")
+                elif elm.tag_name == 'select':
+                    group_elms.append(outerHtml)
+                    group_elms_xpath.append(forms_latest.get_locator(driver, elm))
+                    #group_attr.append(str(outerHtml)[str(outerHtml).find('[') : str(outerHtml).find(']') + 1])
+                    group_attr.append("def")
+                elif elm.tag_name == 'a' and elm.get_attribute("onclick") is not None:
+                    group_elms.append(outerHtml)
+                    group_elms_xpath.append(forms_latest.get_locator(driver, elm))
+                    #group_attr.append(str(outerHtml)[str(outerHtml).find('[') : str(outerHtml).find(']') + 1])
+                    group_attr.append("xyz")
+                    groupNo = groupNo + 1
+                    grop_dict[groupNo] = [driver.current_url, group_elms, group_elms_xpath, group_attr]
+                    group_elms = list()
+                    group_elms_xpath = list()
+                elif elm.tag_name == 'button' or elm.get_attribute('type') == 'button'  or elm.get_attribute("type") == 'submit':
+                    group_elms.append(outerHtml)
+                    group_elms_xpath.append(forms_latest.get_locator(driver, elm))
+                    #group_attr.append(str(outerHtml)[str(outerHtml).find('[') : str(outerHtml).find(']') + 1])
+                    group_attr.append("bgt")
+                    groupNo = groupNo + 1
+                    grop_dict[groupNo] = [driver.current_url, group_elms, group_elms_xpath, group_attr]
+                    group_elms = list()
+                    group_elms_xpath = list()             
+    return grop_dict
+
+def grouping_main(driver, url):
+    grouping_df = pd.DataFrame()
+    try:
+        logger = m(url, 999)
+        print("In Grouping..")
+        logger.write_log_data("Grouping")
+        logger.write_log_data(driver.current_url)
+        bodyelm= driver.find_element_by_tag_name('body')
+        child_elms= bodyelm.find_elements_by_xpath('.//*')
+        include_tags = ['input','select','button','textarea']
+        interactive_elms = list()
+        for i in child_elms:
+            if i.tag_name in include_tags:
+                interactive_elms.append(i)
+                print(i.tag_name,i.get_attribute('outerHTML'))
+            elif i.tag_name == 'a' and i.get_attribute("onclick") is not None:
+                interactive_elms.append(i)
+                print(i.tag_name,i.get_attribute('outerHTML'))
+        print('=======')
+        print(len(interactive_elms))
+        
+        grouping_dict = group_interactive_elems(driver, interactive_elms)
+        return grouping_dict
+    except StaleElementReferenceException as Exception:
+        print("STALE ELEMENT EXCEPTION ************", Exception)
+        logger.write_log_data(driver.current_url)
+        driver.get(url)
+        WebDriverWait(driver, 5)
+        bodyelm= driver.find_element_by_tag_name('body')
+        child_elms= bodyelm.find_elements_by_xpath('.//*')
+        include_tags = ['input','select','button','textarea']
+        interactive_elms = list()
+        for i in child_elms:
+            if i.tag_name in include_tags:
+                interactive_elms.append(i)
+                print(i.tag_name,i.get_attribute('outerHTML'))
+            elif i.tag_name == 'a' and i.get_attribute("onclick") is not None:
+                interactive_elms.append(i)
+                print(i.tag_name,i.get_attribute('outerHTML'))
+        print('=======')
+        print(len(interactive_elms))
+        
+        grouping_dict = group_interactive_elems(driver, interactive_elms)
+        return grouping_dict
+    except Exception as e:
+        print(traceback.format_exc(), e)
     
 
-main("https://www.petstore.com/", 666666, 4)
+main("https://www.mightymatcha.com/", 8888999, 1)
+#import multiprocessing
+
+#print(multiprocessing.cpu_count())
