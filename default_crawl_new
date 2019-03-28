@@ -669,3 +669,15 @@ main("https://www.mightymatcha.com/", 8888999, 1)
 #import multiprocessing
 
 #print(multiprocessing.cpu_count())
+
+
+CREATE TABLE idas.webpage_grouping_elements
+(
+   testId INT NOT NULL,
+   group_no INT,
+   pageUrl TEXT,
+   elements TEXT,
+   xpaths TEXT,
+   element_attributes TEXT,
+   pageImage LONGBLOB
+);
